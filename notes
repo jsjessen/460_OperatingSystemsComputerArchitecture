@@ -1,0 +1,28 @@
+====================================================================================================
+Monday - January 12
+====================================================================================================
+Introduction
+------------
+
+Operation System (OS) is a set of competing/cooperating processes
+Drivers for controlling devices
+
+Homework: Install BCC, QEMO, MTX
+
+"qemu -hda vdisk -m 520m -smp $1 -serial mon:stdio -cdrom mtxInstallCD.iso -localtime"
+"qemu -hda vdisk -m 520m -smp $1 -serial mon:stdio -cdrom mtxInstallCD.iso -boot d" (boot from d drive)
+
+vdisk has 4 partitions with different MTX builds
+
+Lab 1: Create a booter to replace his, must be less than 1 kb
+
+"qemu -fda mtximage -no-fd-bootchk -localtime -serial mon:stdio"
+
+boot: mtx
+
+====================================================================================================
+Wednesday - January 14
+====================================================================================================
+Linux Help - Saturday 11am-3pm, EME 16
+
+

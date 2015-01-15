@@ -1,0 +1,821 @@
+                   CS460 Lab Assignment #1 
+###########################################################################
+                    DUE : to be posted
+###########################################################################
+   
+1. REQURIEMENT:
+   To deveop a boot program for booting the MTX operating system.
+
+2. Background Reading List and Timetable:
+   Notes #2: Booting
+
+3-1. Download the MTX image file
+        http://www.eecs.wsu.edu/~cs460/samples/LAB1/mtximage
+     If your PC/laptop still has a floppy drive: Dump it to a REAL floppy disk
+        dd if=mtximage.bin  of=/dev/fd0 
+
+     If NOT, use it as VIRTUAL FD, as in
+        qemu -fda mtximage -no-fd-bootchk
+     Then, boot up MTX from the virtual FD.
+
+     Test run the MTX operating system as demonstrated in class.
+
+                         CONTENTS of the MTX disk image:
+
+     |  B0  | B1 ...................................................... B1339 |
+     --------------------------------------------------------------------------
+     |booter|   An EXT2 file system for MTX; kernel=/boot/mtx                 | 
+     --------------------------------------------------------------------------
+   
+     LAB#1 IS FOR YOU TO WRITE A BOOTER PROGRAM TO REPLACE THE booter IN BLOCK#0
+     TO BOOT UP THE MTX KERNEL, which is the image file /boot/mtx.
+   
+3-2. Download the BCC package to / directory of YOUR Linux system:
+         http://www.eecs.wsu.edu/~cs460/samples/Dev86bin.tar.gz
+     Install BCC by 
+         zcat Dev86bin.tar.gz | tar xvf -
+
+3-3. Background: Computer Architecture and Programming Environment
+     Lab#1 assumes the following hardware and software environments.
+
+     Hardware: Intel X86 based PC running Linux. For convenience, use a virtual
+               machine that emulates the PC hardware: QEMU, VMware, VirtualBox,
+               etc.
+     Software: BCC compiler-assembler-linker under Linux. 
+
+     When a PC starts, it is in the so-called 16-bit UNPROTECTED mode, also 
+     known as the 16-bit real mode. While in this mode, the PC's CPU can only 
+     execute 16-bit code and access 1MB memory. The diagram below shows the 1MB
+     memory layout, shown in 64KB segments.
+
+           0x0000    0x1000   .......     0x9000     0xA000 ... 0xF000
+           -----------------------------------------------------------
+           |         |     ..........     |          |          BIOS |
+           -----------------------------------------------------------
+           |<-------------- 640KB RAM area --------->|<--- ROM ----->|
+
+     Within each segment, there is an offset within that segment.
+
+     The CPU's internal registers are
+              segment registers: CS, DS, SS, ES 
+              general registers: AX, BX, CX, DX, BP, SI, DI
+              status  register : FLAG
+              stack pointer    : SP
+              instruction point or program counter: IP
+     All registers are 16-bit wide. 
+  
+     The CPU operates as follows:
+
+     20 bit => 2^20 = 1MB
+
+1. Real-mode physical memory = 1MB. A memory address has 20 bits, e.g.
+
+             0x00000, 0x00010, 0x00020
+             0x10000, 0x20000, 0x30000, etc.
+
+   A segment is a block of memory beginning from a 16-byte boundary. Since the 
+   last 4 bits of a segment address are always 0, it suffices to represent a
+   segment address by the leading 16 bits. Each segment size is up to 64KB.
+
+2. The CPU in has 4 segment registers, each 16-bits.
+
+       CS -> Code  segment  = program code or instructions
+       DS -> Data  segment  = static and global data (ONE COPY only)
+       SS -> Stack segment  = stack area for calling and local variables. 
+       ES -> Extra segment  = temp area; may be used for malloc()/mfree() <--- IGNORE
+
+3. In a program, every address is a 16-bit VIRTUAL address (VA). For each
+   16-bit VA, the CPU automatically translates it into a 20-bit PHYSICAL address
+   (PA) by
+
+          (20-bit)PA = ((16-bit)segmentRegister << 4) + (16-bit)VA.
+   
+  where segmentRegister is either by default or by a segment  prefix in the 
+  instruction.
+        When fetch instruction, the CPU uses CS
+        When move data, it uses DS
+        When use  stack (push/pop/call/ret), it uses SS
+                    
+  Examples:
+  Assume CS=0x1234. IP=0x2345 ==> PA = (0x1234<<4) + 0x2345 = 0x14685 (20 bits)
+         DS=0x1000. mov ax,0x1234 ==> PA=0x10000 + 0x1234   = 0x11234, etc.
+
+IMPORTANT: In a program, every address is a 16-bit VA, which is an OFFSET in a
+           memory segment. When accessing memory, the CPU maps every VA to a 
+           20-bit PA.
+
+4. The CPU executes in an infinite loop:
+
+        while (power on)
+        {
+           (1). IP points at the instruction in Code segment of memory;
+           (2). Fetch instruction (always from Code segment), so the
+                20-bit physical address is (CS<<4 + IP);
+           (3). Decode the instruction = (opcode, operands);
+           (4). If operands are in memory: load operands into CPU 
+                (always from Data segment), so the 20-bit physical
+                address is (DS<<4 + operandAddress)
+           (5). Execute the instruction, which may change IP (by 
+                br, jmp, call, ret) OR SP (by push,pop,call,ret).
+                When SP is used, e.g. in push, pop, call, ret, it's
+                always in the Stack sgement, so the 20-bit physical
+                address is (SS<<4 + SP). 
+                If result must go back to memory, it's again in the
+                Data segment.
+           (6). Checking for interrupts OR execution error. If so,
+                start exception processing.
+        }
+
+5. The number of DISTINCT segments available to the CPU depends on the
+   memory model of the executing program, which is determined by the compiler
+   and linker used to generate the binary executable image. The most often used
+   memory models are
+
+    One-segment model :(COM files): CS=DS=SS all in ONE segment <= 64KB (size limit)
+    Separate I&D model:(EXE files): CS=CodeSegment, DS=SS=Data+Stack segment (Data = Heap) 
+
+    For C, Stack and Data need to be together for pointers to work.
+  
+One-segment model programs can be loaded to, and executed from, any available 
+segment in memory. In order to run a One-segment memory model program, the 
+following steps are needed:
+
+(1). A C compiler and assembler which generate 16-bit (object) code
+(2). A linker that combines the object code to generate a ONE-segment
+     binary executable image. We shall use BCC under Linux to do (1) and (2).
+(3). LOAD the binary executable image into memory (at a segment boundary) 
+     and set CPU's CS=DS=SS = loaded segment.
+         Set SP at the HIGH end of the segment.
+         Set IP at the beginning instruction in the segment.
+     Then let the CPU execute the image.
+ 
+
+                     6. PRE-WORK #1:
+                     DUE: in one week
+
+6-1. Given: The following bs.s file in BCC's assembly
+
+KC provides all assembly code
+You don't need to write any but you must understand it!
+
+Use '_' prefix to avoid name conflicts with C program
+
+!==================== bs.s file ===================================
+        .globl _main             ! IMPORT symbols from C code
+        .globl _getc,_putc       ! EXPORT symbols to C code
+
+!--------------------------------------------------------------------
+! Only one SECTOR loaded at (0000,7C00). Load entire block to 0x90000
+!--------------------------------------------------------------------
+        mov  ax,#0x9000    ! set ES to 0x9000
+        mov  es,ax
+
+        xor  bx,bx          ! clear BX = 0
+!--------------------------------------------------------------------
+!  Call BIOS INT-13 to read BOOT BLOCK to (segment,offset)=(0x9000,0)
+!--------------------------------------------------------------------
+        xor  dx,dx          ! DH=head=0,   DL=drive=0
+        xor  cx,cx          ! CL=cylinder, CL=sector
+        incb cl             ! BIOS counts sector from 1
+        mov  ax, #0x0202    ! AH=READ      AL=2 sectors
+        int  0x13           ! call BIOS INT-13
+
+        jmpi start,0x9000   ! CS=0x9000, IP=start
+
+start:                    
+        mov  ax,cs          ! Set segment registers for CPU
+        mov  ds,ax          ! we know ES,CS=0x9000. Let DS=CS  
+        mov  ss,ax          ! SS = CS ===> all point at 0x9000
+        mov  es,ax
+        mov  sp,#8192       ! SP = 8192 above SS=0x9000
+
+!--------------- OPTIONAL --------------------------------------
+        mov  ax,#0x0012     ! Call BIOS for 640x480 color mode     
+	int  0x10           ! 
+!--------------------------------------------------------------	
+        call _main          ! call main() in C
+
+        jmpi 0,0x1000
+ 
+
+!======================== I/O functions =================================
+		
+!---------------------------------------------
+!  char getc()   function: returns a char
+!---------------------------------------------
+_getc:
+        xorb   ah,ah           ! clear ah (zero out), a's high byte
+        int    0x16            ! call BIOS to get a char in AX
+        ret 
+
+!----------------------------------------------
+! void putc(char c)  function: print a char
+!----------------------------------------------
+_putc:           
+        push   bp
+	    mov    bp,sp           ! bp stack frame pointer
+	
+        movb   al,4[bp]        ! get the char into aL (a Low)
+        movb   ah,#14          ! aH = 14
+        movb   bl,#0x0D        ! bL = color 
+        int    0x10            ! call BIOS to display the char
+
+        pop    bp
+	ret
+
+6-2. Write YOUR own t.c file in C:
+
+/************** t.c file **************************/
+int prints(char *s)
+{
+    while(c)
+        putc(c);
+}
+
+int gets(char s[ ]) ! s must be really memory area, not just pointer
+{
+    call getc() to input a string into s[ ]
+}
+
+main()
+{
+   char name[64];
+   while(1)
+   {
+     prints("What's your name? ");
+     gets(name);
+
+     if (name[0]==0)
+        break;
+
+     prints("Welcome "); prints(name); prints("\n\r");
+   }
+   prints("return to assembly and hang\n\r");
+}
+
+vv CREATE SHELL SCRIPT TO DO THIS vv
+
+6-3. Use BCC to generate a one-segment binary executable a.out WITHOUT header
+     
+     as86 -o bs.o  bs.s (assembler)
+     bcc -c -ansi  t.c (compile and create a.out)
+     ld86 -d bs.o t.o /usr/lib/bcc/libc.a (linker, don't need header so chop it off)
+
+6-4. dump a.out to first block of VIRTUAL FD disk:
+
+     dd if=a.out of=mtximage bs=1024 count=1 conv=notrunc 
+     (don't truncate so only inserting to beginning, not deleting everything after)
+
+     BIOS grabs first 512 bytes (the first half of you)
+
+     First computers, guaranteed to have at least 64kb RAM
+
+    |-------| 0x0000
+    |       |
+    |0x7000 |
+    |  512  |
+    |-------| 0x1000
+    |       |
+    |       |
+    |-------|
+
+
+6-5. Boot up QEMU from the virtual FD disk:
+     
+     qemu -fda mtximage -no-fd-bootchk
+
+
+==========================================================================
+                   7. PRE-WORK #2
+                DUE: also in ONE week
+
+7-1. Add readfd(cyl, head, sector, buf) function to bs.s file:
+ 
+!==================== bs.s file ===================================
+        .globl _main,_prints       ! IMPORT symbols from C code
+        .globl _getc,_putc,_error  ! EXPORT symbols to C code
+
+!--------------------------------------------------------------------
+! Only one SECTOR loaded at (0000,7C00). Load entire block to 0x90000
+!--------------------------------------------------------------------
+        mov  ax,#0x9000     ! set ES to 0x9000
+        mov  es,ax          ! now es contains that segment
+                            ! (ES segment, BX offset) = Real
+
+        xor  bx,bx          ! clear BX = 0
+!--------------------------------------------------------------------
+!  Call BIOS INT-13 to read BOOT BLOCK to (segment,offset)=(0x9000,0)
+!--------------------------------------------------------------------
+
+       ! Read 2 sectors from the beginning of the disk 
+
+        xor  dx,dx          ! DH=head=0,   DL=drive=0
+        xor  cx,cx          ! CL=cylinder, CL=sector
+        incb cl             ! BIOS counts sector from 1, so increment once
+        mov  ax, #0x0202    ! AH=READ      AL=2 sectors
+        int  0x13           ! call BIOS INT-13
+
+        ! moved ourselves to high ground
+
+        jmpi start,0x9000   ! CS=0x9000, IP=start 
+
+        ! CPU olympic jump to 0x9000 segment ( high ground)
+
+start:                    
+        mov  ax,cs          ! Set segment registers for CPU
+        mov  ds,ax          ! we know ES,CS=0x9000. Let DS=CS  
+        mov  ss,ax          ! SS = CS ===> all point at 0x9000 (0x9000 is code, stack, data segment)
+        mov  es,ax
+        mov  sp,#8192       ! SP = 8192 above SS=0x9000
+
+!--------------- OPTIONAL --------------------------------------
+        mov  ax,#0x0012     ! Call BIOS for 640x480 color mode     
+	int  0x10           ! 
+!--------------------------------------------------------------	
+        call _main          ! call main() in C
+
+        jmpi 0,0x1000
+
+!======================== I/O functions =================================
+_getc:
+        xorb   ah,ah           ! clear ah
+        int    0x16            ! call BIOS to get a char in AX
+        ret 
+_putc:           
+        push   bp
+	mov    bp,sp
+	
+        movb   al,4[bp]        ! get the char into aL
+        movb   ah,#14          ! aH = 14
+        movb   bl,#0x0D        ! bL = color 
+        int    0x10            ! call BIOS to display the char
+
+        pop    bp
+	ret
+
+!---------------------------------------
+! readfd(cyl, head, sector, buf)
+!        4     6     8      10
+!---------------------------------------
+_readfd:                             
+       push  bp
+       mov   bp,sp            ! bp = stack frame pointer
+
+       movb  dl, #0x00        ! drive 0=FD0
+       movb  dh, 6[bp]        ! head
+       movb  cl, 8[bp]        ! sector
+       incb  cl
+       movb  ch, 4[bp]        ! cyl
+       mov   bx, 10[bp]       ! BX=buf ==> memory addr=(ES,BX)
+       mov   ax, #0x0202      ! READ 2 sectors to (EX, BX)
+
+       int  0x13              ! call BIOS to read the block 
+       jb   _error            ! to error if CarryBit is on [read failed]
+
+       pop  bp                
+       ret
+
+!------------------------------
+!       error & reboot
+!------------------------------
+_error:
+        mov  bx, #bad
+        push bx
+        call _prints
+        int  0x19             ! reboot
+
+bad:    .asciz  "Error!"
+
+ 
+7-2. How to read disk block into memory:
+
+The function readfd(cyl, head, sector, buf) calls BIOS INT13 to read a disk 
+block (2 sectors) at (cyl, head, sector) into memory. 
+When read/write disk, BIOS INT13 uses (segment, offset)=(ES, BX) as the real or
+physical address. 
+In readfd(), buf is loaded into BX, so the real address is (ES, buf), where buf
+is an offset in the ES segment.
+ 
+Example:
+    ES -> Data segment of a program, buf is the address of a global variable in
+          C, then readfd(cyl, head, sector, buf); reads a block into buf;
+   
+    ES -> 0x2000, buf=0, then readfd(cyl, head, sector, buf); reads a block
+                         to (0x2000<<4 + 0), etc.
+
+7-3. Linear BLOCK number to CHS format:
+     File system uses LINEAR disk block numbers = 0,1,2,.... etc.
+     BIOS INT13 only accepts parameters in CHS format. 
+
+     YOU must convert a block number to CHS before calling readfd(c,h,s,buf).
+
+A 1.44MB floppy disk has 80 cylinders, 2 heads per cylinder and 18 sectors
+under each head. The PHYSICAL layout of a floppy disk is as follows, where
+cyl, head, sector all count from 0.
+
+       ----------------------------------------------------------------------
+linear |s0 s1 .... s17 | s18  .... s35 | s36 .....   s53|s54         s71| ...
+       ----------------------------------------------------------------------
+sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
+head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| .... 
+cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ....
+
+     A disk block consists of 2 contigious sectors. Given a block number, blk,
+     which counts from 0 to 1339, how to convert blk into (cyl, head, sector)? 
+     -------------------------------------------------------------------------
+               Use the Mailman's algorithm (per CS360) to
+              FIGURE OUT THE CONVERSION ALGORITHM YOURSELF
+     -------------------------------------------------------------------------
+     Then write a function
+          get_block(int blk, char buf[ ])
+          {
+              //convert blk to (cyl, head, sector);
+               readfd(cyl, head, sector, buf);
+          }
+
+7-4. With YOUR getblk() function, write a t.c file to do the following:
+
+/********** t.c file ******************/
+
+#include "ext2.h"  /* download this from LAB1 */
+typedef struct ext2_group_desc  GD;
+typedef struct ext2_inode       INODE;
+typedef struct ext2_dir_entry_2 DIR;
+
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned long  u32;
+
+#define BLK 1024
+
+int prints(char *s)
+{
+   // YOUR prints() function
+}
+
+u16 getblk(u16 blk, char buf[ ])
+{
+   // convert blk to CHS; then call readfd(c,h,s, buf);
+}
+
+
+GD    *gp;
+INODE *ip;
+DIR   *dp;
+
+main()
+{ 
+  u16  i, iblk;
+  char buf1[BLK], buf2[BLK];
+
+  prints("booter start\n\r");  
+
+  /* read blk#2 to get group descriptor 0 */
+  getblk((u16)2, buf1);
+  gp = (GD *)buf1;
+  iblk = (u16)gp->bg_inode_table; // typecast u32 to u16
+
+  prints("inode_block="); putc(iblk+'0'); getc();
+
+  /******** write C code to do these: ********************
+  (1).read first inode block into buf1[ ]
+
+  (2).let ip point to root INODE (inode #2)
+   
+  (3).For each DIRECT block of / do:
+          read data block into buf2[ ];
+          step through the data block to print the names of the dir entries 
+  
+  (4).prints("\n\rAll done\n\r");
+  ******************************************************/
+}  
+
+7-5. Run YOUR bs.s and t.c as in PRE-WORK#1
+
+
+=============================================================================
+LAST PART HELP OF BOOTER: HOW TO LOAD DISK BLOCKS to a segment, e.g. 0x1000:
+
+When the booter runs at segment 0x9000, CS,DS,SS and ES all point at 0x9000.
+A varible such as char buf[1024] is in the data segment (if global) 
+                                       or stack segment (if local).
+But it is also in the ES segment since ES=DS=SS.
+
+             YOU MUST ACCPET THE NOTION THAT
+Any global symbol, e.g. a variable name or function name, in a program is a 
+VIRTUAL ADDRESS in the program, which is just an OFFSET value, e.g. 1234, 
+from the beginning address of a program. In a one-segment program, the beginning
+address of a program is in the CS=DS=SS segment register.
+
+The CPU maps every VIRTUAL address VA to a PHYSICAL address PA by
+             PA = (segmentReg<<4) + VA  
+
+When you call getblk(blk, buf), BIOS uses (ES, buf) as the memory address.
+Since ES points at the program segment, the disk block is read into buf[1024] 
+in YOUR program.
+
+WHAT IF YOU CHANGE ES to a different segment, say ES=0x2000?
+getblk(blk, buf) would load the disk block to (0x2000<<4) + buf, which is 
+NO LONGER in your program (segment)!!!!
+=============================================================================
+
+      Assume: INODE *ip -> INODE of a file
+      int i;
+      setes(0x1000);   // ES now points at segment 0x1000
+
+      for (i=0; i<12; i++){
+           getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
+           inces();     // increment ES by 1KB (in 16-byte units)
+      }
+
+The above code loads 12 DIRECT BLOCKs of the file into 
+    0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
+
+
+In the getblk() call, WHY   (u16)ip->i_block[i] ?
+
+Each i_block[i] is a u32. Without typecasting, it would be passed as a u32 on
+the stack. Two possible problems:
+
+(1). If your getblk() is defined as getblk(u16 blk, char *buf), 
+     getblk() would get wrong parameters.
+
+(2). If your getblk() is defined as getblk(u32 blk, char *blk),
+     the C compiler generates (16-bit) code must push two 2-byte values TWICE
+     ==> your code size would be larger.
+
+
+===========================================================================
+
+                   8. The BOOTER Assignment
+
+8-1. An assembly file bs.s in in the ~cs460/samples/LAB1/ directory.  
+     You may download and use it directly. 
+
+           ! bs.s file   ! text following ! are comments
+!============================================================================
+       BOOTSEG =  0x9000        ! Boot Block is loaded again to here.
+       SSP      =   8192        ! Stack pointer at SS+8KB
+	
+       .globl _main,_prints                            ! IMPORT symbols
+       .globl _getc,_putc,_readfd,_setes,_inces,_error ! EXPORT symbols
+                                                
+       !-------------------------------------------------------
+       ! Only one SECTOR loaded at (0000,7C00). Get entire BLOCK in
+       !-------------------------------------------------------
+       mov  ax,#BOOTSEG    ! set ES to 0x9000
+       mov  es,ax
+       xor  bx,bx          ! clear BX = 0
+       !---------------------------------------------------
+       ! call BIOS-INT13 to read 1KB BLOCK to [0x9000,0]     
+       !---------------------------------------------------
+       xor  dx,dx          ! drive 0, head 0
+       xor  cx,cx
+       incb cl             ! cyl 0, sector 1
+       mov  ax, #0x0202    ! READ 1 block
+       int  0x13
+
+       jmpi start,BOOTSEG           ! CS=BOOTSEG, IP=start
+
+start:                    
+       mov  ax,cs                   ! establish segments again
+       mov  ds,ax                   ! we know ES,CS=0x8F00. Let DS=CS  
+       mov  ss,ax                   ! SS = CS ===> all point at 0x8F00
+       mov  es,ax
+       mov  sp,#SSP                 ! SP = 8KB above 0x90000
+
+       mov  ax,#0x0012              ! 640x480 color     
+       int  0x10 
+	
+       call _main                      ! call main() in C
+
+       jmpi 0,0x1000
+ 
+
+!======================== I/O functions =================================
+       !---------------------------------------------
+       !  char getc()   function: returns a char
+       !---------------------------------------------
+_getc:
+       xorb ah,ah           ! clear ah
+       int  0x16            ! call BIOS to get a char in AX
+       ret 
+
+       !----------------------------------------------
+       ! void putc(char c)  function: print a char
+       !----------------------------------------------
+_putc:           
+       push  bp
+       mov   bp,sp
+	
+       movb  al,4[bp]        ! get the char into aL
+       movb  ah,#14          ! aH = 14
+       movb  bl,#0x0D        ! bL = cyan color 
+       int   0x10            ! call BIOS to display the char
+
+       pop   bp
+       ret
+
+       !---------------------------------------
+       ! readfd(cyl, head, sector, buf)
+       !        4     6     8      10
+       !---------------------------------------
+_readfd:                             
+       push  bp
+       mov   bp,sp            ! bp = stack frame pointer
+
+       movb  dl, #0x00        ! drive 0=FD0
+       movb  dh, 6[bp]        ! head
+       movb  cl, 8[bp]        ! sector
+       incb  cl
+       movb  ch, 4[bp]        ! cyl
+       mov   bx, 10[bp]       ! BX=buf ==> memory addr=(ES,BX)
+       mov   ax, #0x0202      ! READ 2 sectors to (EX, BX)
+
+       int  0x13              ! call BIOS to read the block 
+       jb   _error            ! to error if CarryBit is on [read failed]
+
+       pop  bp                
+       ret
+	
+! void set_es(unsigned short segment)  set ES register to segment
+_setes:  
+        push  bp
+        mov   bp,sp
+        mov   ax,4[bp]        
+        mov   es,ax
+        pop   bp
+	ret
+	   
+! void inces() inc ES by 0x40, or 1KB
+_inces:                         
+        mov   ax,es
+        add   ax,#0x40
+        mov   es,ax
+        ret
+
+        !------------------------------
+        !       error & reboot
+        !------------------------------
+_error:
+        mov  bx, #bad
+        push bx
+        call _prints
+        
+        int  0x19                       ! reboot
+
+bad:    .asciz  "Error!"
+
+! end of bs.s file
+
+
+ BCC's C compiler prefix every GLOBAL symbol with an underscore, so that main
+ becomes _main, getc becomes _getc, etc. BCC's assembler uses the same 
+ convention for global symbols, which must be declared by the .globl statements
+ in assembly code. 
+
+ As shown, bs.s EXPORTs the following functions
+        char getc();
+        void putc(char c);
+
+ 
+        void readfd(int cyl, int head, int sector, char *buf)
+        viod setes(int segment);
+        void inces();
+
+     which are callable from C. 
+    
+***********   THE LOGIC OF bs.s IS AS FOLLOWS:   *************
+
+  (1). It is to be combined with a .c source file to form a booter code 
+       which occupies the boot BLOCK (block#0) of a floppy disk.
+
+  (2). During booting, BIOS loads 512 bytes of this boot BLOCK to
+       (0x0000,0x7C00) and jumps to it. Although only half in, it can start
+       execution because it does not need any portion that's not yet loaded.
+
+  (3). It sets ES=0x9000, BX=0 and calls BIOS to load the entire boot
+       BLOCK to 0x9000.
+
+  (4). Then it jumps to the symbol start relative to 0x9000, and 
+       continues to execute from there. This jump sets CS to 0x9000. 
+
+  (5). It sets DS,SS to CS, and SP to 8KB above SS. Note that ES is already 
+       set to 0x9000 in (3). Thus, CS,DS,SS and ES all point at the same 
+       segment address 0x9000.
+
+  (6). It then calls YOUR  main() in C, which is specified in 3 below.
+
+  (7). Upon return from C code, bs.s jumps to (0x1000, 0) to start up MTX.
+       In your C code, call error() if any error.
+
+3. YOUR C code:
+
+   First, some notes about using BCC's C compiler:
+
+   (1). Use identifier names <= 8 chars; the compiler will truncate long names
+        to 8 chars, including the leading _ 
+   (2). Declare all variables BEFORE using them (else compile error)!!!!
+   (3). If you declare function parameters inside the function heading, as in
+           int myfun(int x, char *y)
+           {                       }
+            
+        You must use the bcc -ansi option to allow ANSI style C statements.
+
+   (4). Whenever in doubt, use pretheses to ensure correct precedence, e.g.
+           a = b % 2 + 1;  should be written as a = (b % 2) + 1; if that's
+                           what you meant.
+
+   Other than these, bcc is very good as it produces excellent error 
+   diagnostics. 
+ 
+   Second, never assume that your program will work. More likely, it will NOT.
+   An easy way to TRACE your program execution, especially for debugging, is to
+   use putc('1'); putc('2'), etc. in your C code. This way you can easily see 
+   where the program stopped working.
+ 
+   You may use the C library functions strcmp(), strcpy(), strlen(), etc. 
+   as long as they do NOT need the support of an operating system. But you may 
+   NOT use printf(), scanf(), putchar(), getchar(), ... . These I/O functions 
+   depend on the support of an operating system but there is NO operating system
+   yet during booting!
+
+8-2. HOW TO cross COMPILE and LINK under Linux: (Use these as a sh script)
+     --------------------------------------------------------------
+     echo comiling ......
+     as86 -o bs.o  bs.s  
+     bcc  -c -ansi main.c
+  
+     echo linking .......
+     ld86 -d bs.o  main.o  /usr/lib/bcc/libc.a
+     echo check a.out size
+     ls -l a.out
+     
+     echo dump a.out to a VIRTUAL FD
+     dd if=a.out of=mtximage bs=1024 count=1 conv=notrunc
+ 
+     -------------------------------------------------------------
+     The last step dumps (at most 1KB of) a.out to BLOCK 0 of FD.
+     The resulting disk should be bootable.
+ 
+8-3. Compile and link bs.s with YOUR main.c to generate a booter and dump it
+    to BLOCK #0 of a floppy disk. Boot up from the floppy and make sure your
+    program works correctly.
+
+                           IMPORTANT:
+     ****************************************************************
+     Your a.out must be <= 1024 bytes in order for it to fit in ONE disk block.
+
+     THERE IS NO FAT IN MY  bs.s  CODE. The .s type says loud and clear
+     that it's already Slim!  If your a.out is too big, it has been eating 
+     too much junk food.  You must put it on diet until it weighs no more 
+     than 1024 pounds (bytes, that is).
+     ****************************************************************
+
+8-4. I/O Functions During Booting:
+     GIVEN: getc()/putc() readfd() in assenbly code, which calls BIOS
+     Any other I/O functions MUST be based on these.
+     Examples: prints() and gets() in LAB1.help files
+
+===============================================================================
+
+8-5. MAIN TASK OF LAB#1:  DUE and DEMO : to be posted
+   
+     Refer to the CONTENTS of the MTX disk image:
+
+     |  B0  | B1 ............................ B1339 |
+     ------------------------------------------------
+     |booter|   An EXT2 file system for MTX         |  
+     ------------------------------------------------   
+
+     Block# 0 contains a booter, which can boot up MTX.
+     The remaining parts of the disk is an EXT2 file system (per CS360) with
+     1KB block size. The EXT2 file system contents are
+
+                          /
+                          |
+       -------------------------------------------
+       |         |        |        |       |      |
+      bin       dev      etc      user    sys    boot
+       |         |        |        |              |
+    commands  devFiles  passwd   userDirs        mtx 
+                                           (bootable MTX kernels)
+
+    where /boot/mtx is a bootable MTX kernel. 
+
+    Write YOUR main() as follows:
+
+    (1). Prompt for filename to boot, e.g. mtx or image, etc. You may assume
+         that all bootable files are in the /boot directory.
+    (2). Find the file. Recall that "finding a file amounts to finding its 
+         inode". 
+    (3). From the file's inode, find the disk blocks of the file:
+               i_block[0] to i_block[11] are DIRECT blocks, and
+               i_blokc[12] points to INDIRECT blocks.
+         MTX kerenl has at most 64 (1KB) blocks, so no double-indirect blocks.
+ 
+    (4). Load the blocks of /boot/mtx into memory at the segment 0x1000.
+    (5). Any errro condition, call error() in assembly.
+    ==========================================================================  
+    (6). If YOUR main() loads the disk blocks of mtx successfully, it returns to
+         bs.s, which jumps to (0x1000, 0) to start up MTX.
