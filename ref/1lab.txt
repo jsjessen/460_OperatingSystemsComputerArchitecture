@@ -366,7 +366,7 @@ _readfd:
        movb  cl, 8[bp]        ! sector
        incb  cl
        movb  ch, 4[bp]        ! cyl
-       mov   bx, 10[bp]       ! BX=buf ==> memory addr=(ES,BX)
+       mov   bx, 10[bp]       ! BX=buf ==> memory addr=(ES,BX) bx=offset
        mov   ax, #0x0202      ! READ 2 sectors to (EX, BX)
 
        int  0x13              ! call BIOS to read the block 
@@ -453,6 +453,13 @@ int prints(char *s)
    // YOUR prints() function
 }
 
+
+// website/samples/LAB1/chs does this
+// loop through all possible values and compare
+
+// when calling, cast u32 blk -> u16 blk or will shift buf[]
+// remember, bcc makes it all 16 bit, so u32 takes 2 pushes (larger)
+
 u16 getblk(u16 blk, char buf[ ])
 {
    // convert blk to CHS; then call readfd(c,h,s, buf);
@@ -473,18 +480,32 @@ main()
   /* read blk#2 to get group descriptor 0 */
   getblk((u16)2, buf1);
   gp = (GD *)buf1;
+
+  // block where inodes start
   iblk = (u16)gp->bg_inode_table; // typecast u32 to u16
 
+                          // only works < 10
   prints("inode_block="); putc(iblk+'0'); getc();
 
   /******** write C code to do these: ********************
-  (1).read first inode block into buf1[ ]
+  (1).read first inode block into buf1[ ] // contains 8 inodes
 
   (2).let ip point to root INODE (inode #2)
    
   (3).For each DIRECT block of / do:
-          read data block into buf2[ ];
+          read data block into buf2[ ]; // dir entries, need DIR*
           step through the data block to print the names of the dir entries 
+
+  // search "boot", get ino, get its block
+  // then
+  // search "mtx", get ino, get its block
+
+  // Load
+  ES = 0x1000
+  Load 1kb
+  ES = 0x2000
+  Load 1kb
+  ...
   
   (4).prints("\n\rAll done\n\r");
   ******************************************************/
@@ -519,6 +540,8 @@ getblk(blk, buf) would load the disk block to (0x2000<<4) + buf, which is
 NO LONGER in your program (segment)!!!!
 =============================================================================
 
+// use setes() and inces()
+
       Assume: INODE *ip -> INODE of a file
       int i;
       setes(0x1000);   // ES now points at segment 0x1000
@@ -527,6 +550,9 @@ NO LONGER in your program (segment)!!!!
            getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
            inces();     // increment ES by 1KB (in 16-byte units)
       }
+
+      // READ INDIRECT BLOCKS BEFORE INC ES
+      // Otherwise the read might be out of bounds or some such
 
 The above code loads 12 DIRECT BLOCKs of the file into 
     0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
