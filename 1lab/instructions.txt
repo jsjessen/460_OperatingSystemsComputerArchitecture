@@ -1,0 +1,327 @@
+                   CS460 Lab Assignment #1 
+###########################################################################
+   
+1. REQURIEMENT:
+   To deveop a boot program for booting the MTX operating system.
+
+2. Background Reading List and Timetable:
+   Notes #2: Booting
+
+3-1. Download the MTX image file
+
+     LAB#1 IS FOR YOU TO WRITE A BOOTER PROGRAM TO REPLACE THE booter IN BLOCK#0
+     TO BOOT UP THE MTX KERNEL, which is the image file /boot/mtx.
+
+3-3. Background: Computer Architecture and Programming Environment
+     Lab#1 assumes the following hardware and software environments.
+
+     Hardware: Intel X86 based PC running Linux. For convenience, use a virtual
+               machine that emulates the PC hardware: QEMU, VMware, VirtualBox,
+               etc.
+     Software: BCC compiler-assembler-linker under Linux. 
+
+     When a PC starts, it is in the so-called 16-bit UNPROTECTED mode, also 
+     known as the 16-bit real mode. While in this mode, the PC's CPU can only 
+     execute 16-bit code and access 1MB memory. The diagram below shows the 1MB
+     memory layout, shown in 64KB segments.
+
+           0x0000    0x1000   .......     0x9000     0xA000 ... 0xF000
+           -----------------------------------------------------------
+           |         |     ..........     |          |          BIOS |
+           -----------------------------------------------------------
+           |<-------------- 640KB RAM area --------->|<--- ROM ----->|
+
+     Within each segment, there is an offset within that segment.
+
+     The CPU's internal registers are
+              segment registers: CS, DS, SS, ES 
+              general registers: AX, BX, CX, DX, BP, SI, DI
+              status  register : FLAG
+              stack pointer    : SP
+              instruction point or program counter: IP
+     All registers are 16-bit wide. 
+  
+     The CPU operates as follows:
+
+
+1. Real-mode physical memory = 1MB. A memory address has 20 bits, e.g.
+
+     20 bit => 2^20 = 1MB
+
+             0x00000, 0x00010, 0x00020
+             0x10000, 0x20000, 0x30000, etc.
+
+   A segment is a block of memory beginning from a 16-byte boundary. Since the 
+   last 4 bits of a segment address are always 0, it suffices to represent a
+   segment address by the leading 16 bits. Each segment size is up to 64KB.
+
+2. The CPU in has 4 segment registers, each 16-bits.
+
+       CS -> Code  segment  = program code or instructions
+       DS -> Data  segment  = static and global data (ONE COPY only)
+       SS -> Stack segment  = stack area for calling and local variables. 
+       ES -> Extra segment  = temp area; may be used for malloc()/mfree() <--- IGNORE
+
+3. In a program, every address is a 16-bit VIRTUAL address (VA). For each
+   16-bit VA, the CPU automatically translates it into a 20-bit PHYSICAL address
+   (PA) by
+
+          (20-bit)PA = ((16-bit)segmentRegister << 4) + (16-bit)VA.
+   
+  where segmentRegister is either by default or by a segment  prefix in the 
+  instruction.
+        When fetch instruction, the CPU uses CS
+        When move data, it uses DS
+        When use  stack (push/pop/call/ret), it uses SS
+                    
+  Examples:
+  Assume CS=0x1234. IP=0x2345 ==> PA = (0x1234<<4) + 0x2345 = 0x14685 (20 bits)
+         DS=0x1000. mov ax,0x1234 ==> PA=0x10000 + 0x1234   = 0x11234, etc.
+
+IMPORTANT: In a program, every address is a 16-bit VA, which is an OFFSET in a
+           memory segment. When accessing memory, the CPU maps every VA to a 
+           20-bit PA.
+
+4. The CPU executes in an infinite loop:
+
+        while (power on)
+        {
+           (1). IP points at the instruction in Code segment of memory;
+           (2). Fetch instruction (always from Code segment), so the
+                20-bit physical address is (CS<<4 + IP);
+           (3). Decode the instruction = (opcode, operands);
+           (4). If operands are in memory: load operands into CPU 
+                (always from Data segment), so the 20-bit physical
+                address is (DS<<4 + operandAddress)
+           (5). Execute the instruction, which may change IP (by 
+                br, jmp, call, ret) OR SP (by push,pop,call,ret).
+                When SP is used, e.g. in push, pop, call, ret, it's
+                always in the Stack sgement, so the 20-bit physical
+                address is (SS<<4 + SP). 
+                If result must go back to memory, it's again in the
+                Data segment.
+           (6). Checking for interrupts OR execution error. If so,
+                start exception processing.
+        }
+
+5. The number of DISTINCT segments available to the CPU depends on the
+   memory model of the executing program, which is determined by the compiler
+   and linker used to generate the binary executable image. The most often used
+   memory models are
+
+    One-segment model :(COM files): CS=DS=SS all in ONE segment <= 64KB (size limit)
+    Separate I&D model:(EXE files): CS=CodeSegment, DS=SS=Data+Stack segment (Data = Heap) 
+
+    For C, Stack and Data need to be together for pointers to work.
+  
+One-segment model programs can be loaded to, and executed from, any available 
+segment in memory. In order to run a One-segment memory model program, the 
+following steps are needed:
+
+(1). A C compiler and assembler which generate 16-bit (object) code
+(2). A linker that combines the object code to generate a ONE-segment
+     binary executable image. We shall use BCC under Linux to do (1) and (2).
+(3). LOAD the binary executable image into memory (at a segment boundary) 
+     and set CPU's CS=DS=SS = loaded segment.
+         Set SP at the HIGH end of the segment.
+         Set IP at the beginning instruction in the segment.
+     Then let the CPU execute the image.
+ 
+==========================================================================
+
+6-1. Given: The following bs.s file in BCC's assembly
+
+KC provides all assembly code
+You don't need to write any but you must understand it!
+
+Use '_' prefix to avoid name conflicts with C program
+
+6-2. Write YOUR own t.c file in C:
+
+6-3. Use BCC to generate a one-segment binary executable a.out WITHOUT header
+
+6-4. dump a.out to first block of VIRTUAL FD disk:
+
+     dd if=a.out of=mtximage bs=1024 count=1 conv=notrunc 
+     (don't truncate so only inserting to beginning, not deleting everything after)
+
+     BIOS grabs first 512 bytes (the first half of you)
+
+     First computers, guaranteed to have at least 64kb RAM
+
+    |-------| 0x0000
+    |       |
+    |0x7000 |
+    |  512  |
+    |-------| 0x1000
+    |       |
+    |       |
+    |-------|
+
+
+==========================================================================
+
+7-2. How to read disk block into memory:
+
+The function readfd(cyl, head, sector, buf) calls BIOS INT13 to read a disk 
+block (2 sectors) at (cyl, head, sector) into memory. 
+
+When read/write disk, BIOS INT13 uses (segment, offset)=(ES, BX) as the real or
+physical address. 
+
+In readfd(), buf is loaded into BX, so the real address is (ES, buf), where buf
+is an offset in the ES segment.
+ 
+Example:
+
+    ES -> Data segment of a program, buf is the address of a global variable in
+          C, then readfd(cyl, head, sector, buf); reads a block into buf;
+   
+    ES -> 0x2000, buf=0, then readfd(cyl, head, sector, buf); reads a block
+                         to (0x2000<<4 + 0), etc.
+
+=============================================================================
+
+LAST PART HELP OF BOOTER: HOW TO LOAD DISK BLOCKS to a segment, e.g. 0x1000:
+
+When the booter runs at segment 0x9000, CS,DS,SS and ES all point at 0x9000.
+A varible such as char buf[1024] is in the data segment (if global) 
+                                       or stack segment (if local).
+But it is also in the ES segment since ES=DS=SS.
+
+             YOU MUST ACCEPT THE NOTION THAT
+Any global symbol, e.g. a variable name or function name, in a program is a 
+VIRTUAL ADDRESS in the program, which is just an OFFSET value, e.g. 1234, 
+from the beginning address of a program. In a one-segment program, the beginning
+address of a program is in the CS=DS=SS segment register.
+
+The CPU maps every VIRTUAL address VA to a PHYSICAL address PA by
+             PA = (segmentReg<<4) + VA  
+
+When you call getblk(blk, buf), BIOS uses (ES, buf) as the memory address.
+Since ES points at the program segment, the disk block is read into buf[1024] 
+in YOUR program.
+
+WHAT IF YOU CHANGE ES to a different segment, say ES=0x2000?
+getblk(blk, buf) would load the disk block to (0x2000<<4) + buf, which is 
+NO LONGER in your program (segment)!!!!
+=============================================================================
+
+// use setes() and inces()
+
+      Assume: INODE *ip -> INODE of a file
+      int i;
+      setes(0x1000);   // ES now points at segment 0x1000
+
+      for (i=0; i<12; i++){
+           getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
+           inces();     // increment ES by 1KB (in 16-byte units)
+      }
+
+      // READ INDIRECT BLOCKS BEFORE INC ES
+      // Otherwise the read might be out of bounds or some such
+
+The above code loads 12 DIRECT BLOCKs of the file into 
+    0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
+
+
+In the getblk() call, WHY   (u16)ip->i_block[i] ?
+
+Each i_block[i] is a u32. Without typecasting, it would be passed as a u32 on
+the stack. Two possible problems:
+
+(1). If your getblk() is defined as getblk(u16 blk, char *buf), 
+     getblk() would get wrong parameters.
+
+(2). If your getblk() is defined as getblk(u32 blk, char *blk),
+     the C compiler generates (16-bit) code must push two 2-byte values TWICE
+     ==> your code size would be larger.
+
+===========================================================================
+
+                   8. The BOOTER Assignment
+
+8-1. An assembly file bs.s in in the ~cs460/samples/LAB1/ directory.  
+     You may download and use it directly. 
+
+ BCC's C compiler prefix every GLOBAL symbol with an underscore, so that main
+ becomes _main, getc becomes _getc, etc. BCC's assembler uses the same 
+ convention for global symbols, which must be declared by the .globl statements
+ in assembly code. 
+
+3. YOUR C code:
+
+   First, some notes about using BCC's C compiler:
+
+   (1). Use identifier names <= 8 chars; the compiler will truncate long names
+        to 8 chars, including the leading _ 
+   (2). Declare all variables BEFORE using them (else compile error)!!!!
+   (3). If you declare function parameters inside the function heading, as in
+           int myfun(int x, char *y)
+           {                       }
+            
+        You must use the bcc -ansi option to allow ANSI style C statements.
+
+   (4). Whenever in doubt, use pretheses to ensure correct precedence, e.g.
+           a = b % 2 + 1;  should be written as a = (b % 2) + 1; if that's
+                           what you meant.
+
+   Other than these, bcc is very good as it produces excellent error 
+   diagnostics. 
+ 
+   Second, never assume that your program will work. More likely, it will NOT.
+   An easy way to TRACE your program execution, especially for debugging, is to
+   use putc('1'); putc('2'), etc. in your C code. This way you can easily see 
+   where the program stopped working.
+ 
+   You may use the C library functions strcmp(), strcpy(), strlen(), etc. 
+   as long as they do NOT need the support of an operating system. But you may 
+   NOT use printf(), scanf(), putchar(), getchar(), ... . These I/O functions 
+   depend on the support of an operating system but there is NO operating system
+   yet during booting!
+
+8-3. Compile and link bs.s with YOUR main.c to generate a booter and dump it
+    to BLOCK #0 of a floppy disk. Boot up from the floppy and make sure your
+    program works correctly.
+
+                           IMPORTANT:
+     ****************************************************************
+     Your a.out must be <= 1024 bytes in order for it to fit in ONE disk block.
+
+     THERE IS NO FAT IN MY  bs.s  CODE. The .s type says loud and clear
+     that it's already Slim!  If your a.out is too big, it has been eating 
+     too much junk food.  You must put it on diet until it weighs no more 
+     than 1024 pounds (bytes, that is).
+     ****************************************************************
+
+8-4. I/O Functions During Booting:
+     GIVEN: getc()/putc() readfd() in assenbly code, which calls BIOS
+     Any other I/O functions MUST be based on these.
+     Examples: prints() and gets() in LAB1.help files
+
+===============================================================================
+
+8-5. MAIN TASK OF LAB#1: 
+   
+     Refer to the CONTENTS of the MTX disk image:
+
+     |  B0  | B1 ............................ B1339 |
+     ------------------------------------------------
+     |booter|   An EXT2 file system for MTX         |  
+     ------------------------------------------------   
+
+     Block# 0 contains a booter, which can boot up MTX.
+     The remaining parts of the disk is an EXT2 file system (per CS360) with
+     1KB block size. The EXT2 file system contents are
+
+                          /
+                          |
+       -------------------------------------------
+       |         |        |        |       |      |
+      bin       dev      etc      user    sys    boot
+       |         |        |        |              |
+    commands  devFiles  passwd   userDirs        mtx 
+                                           (bootable MTX kernels)
+
+    where /boot/mtx is a bootable MTX kernel. 
+
