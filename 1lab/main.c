@@ -30,6 +30,10 @@ typedef struct ext2_dir_entry_2 DIR;
 
 #define BLK 1024
 
+#define NUM_C 80
+#define NUM_H 2
+#define NUM_S 18
+
 // bs.s exports the following functions:
 //      char getc();
 //      void putc(char c);
@@ -82,12 +86,12 @@ int gets(char s[])
 // head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| .... 
 // cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ....
 
-//    num_h * num_s = s/c
+//    NUM_H * NUM_S = s/c
 //
 //    s % (s/c) = c
 //    s / (s/c) = within c
 //
-//    num_s = s/h
+//    NUM_S = s/h
 //
 //    (within c) % (s/h) = h
 //    (within c) / (s/h) = s 
@@ -99,16 +103,22 @@ int gets(char s[])
 //                Use the Mailman's algorithm (per CS360) to
 //      -------------------------------------------------------------------------
 
-// Converts linear block number to CHS format
+// when calling, cast u32 blk -> u16 blk or will shift buf[]
+// remember, bcc makes it all 16 bit, so u32 takes 2 pushes (larger)
 u16 getblk(u16 blk, char buf[])
 {
-    // chs does this
-    // loop through all possible values and compare
+    // Convert linear block number to CHS format
+    int c,h,s;
 
-    // when calling, cast u32 blk -> u16 blk or will shift buf[]
-    // remember, bcc makes it all 16 bit, so u32 takes 2 pushes (larger)
-    
-    //readfd(cyl, head, sector, buf);
+    s = blk * 2; // Each 1024 byte block is comprised of 2 512 byte sectors
+
+    c = s / (NUM_H * NUM_S);
+    s = s % (NUM_H * NUM_S);
+
+    h = s / NUM_S;
+    s = s % NUM_S;
+
+    readfd(c, h, s, buf);
 }
 
 GD    *gp;

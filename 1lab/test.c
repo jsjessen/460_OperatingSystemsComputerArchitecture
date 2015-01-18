@@ -17,7 +17,7 @@ void chs(int bno)
     h = linear_s / num_s;
     s = linear_s % num_s;
 
-    printf("%d -> %d = [%d %d %d]\n", bno, linear_s, c,h,s);
+    printf("%d  [%d  %d  %d]\n", bno, c,h,s);
 }
 
 int prints(char *s)
@@ -50,6 +50,9 @@ int get_string(char s[])
 int main(void)
 {
     int i = 0;
+
+    printf("BLK  [C  H  S]\n");
+    printf("--------------\n");
 
     for(i = 0; i < 1440; i++)
         chs(i);
