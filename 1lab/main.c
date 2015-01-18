@@ -81,6 +81,17 @@ int gets(char s[])
 // sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
 // head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| .... 
 // cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ....
+
+//    num_h * num_s = s/c
+//
+//    s % (s/c) = c
+//    s / (s/c) = within c
+//
+//    num_s = s/h
+//
+//    (within c) % (s/h) = h
+//    (within c) / (s/h) = s 
+
 // 
 //      A disk block consists of 2 contigious sectors. Given a block number, blk,
 //      which counts from 0 to 1339, how to convert blk into (cyl, head, sector)? 

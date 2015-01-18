@@ -1,6 +1,25 @@
 #include <stdio.h>
 #include <string.h>
 
+void chs(int bno)
+{
+    int linear_s = bno * 2;
+
+    int num_c = 80;
+    int num_h = 2;
+    int num_s = 18;
+
+    int c,h,s;
+
+    c        = linear_s / (num_h * num_s);
+    linear_s = linear_s % (num_h * num_s);
+
+    h = linear_s / num_s;
+    s = linear_s % num_s;
+
+    printf("%d -> %d = [%d %d %d]\n", bno, linear_s, c,h,s);
+}
+
 int prints(char *s)
 {
     int i = 0;
@@ -30,24 +49,29 @@ int get_string(char s[])
 
 int main(void)
 {
-    char name[64];
-    while(1)
-    {
-        prints("What's your name? ");
-        int glen = get_string(name);
-        printf("get length = %d\n", glen);
+    int i = 0;
 
-        if (name[0]==0)
-            break;
+    for(i = 0; i < 1440; i++)
+        chs(i);
 
-        prints("Welcome "); 
-        putchar('|');
-        int plen = prints(name); 
-        putchar('|');
-        printf("\nput length = %d\n", plen);
-        prints("\n\r");
-    }
-    prints("return to assembly and hang\n\r");
+  //  char name[64];
+  //  while(1)
+  //  {
+  //      prints("What's your name? ");
+  //      int glen = get_string(name);
+  //      printf("get length = %d\n", glen);
+
+  //      if (name[0]==0)
+  //          break;
+
+  //      prints("Welcome "); 
+  //      putchar('|');
+  //      int plen = prints(name); 
+  //      putchar('|');
+  //      printf("\nput length = %d\n", plen);
+  //      prints("\n\r");
+  //  }
+  //  prints("return to assembly and hang\n\r");
 
     return 0;
 }

@@ -70,6 +70,7 @@
    
   where segmentRegister is either by default or by a segment  prefix in the 
   instruction.
+
         When fetch instruction, the CPU uses CS
         When move data, it uses DS
         When use  stack (push/pop/call/ret), it uses SS
@@ -187,6 +188,7 @@ LAST PART HELP OF BOOTER: HOW TO LOAD DISK BLOCKS to a segment, e.g. 0x1000:
 When the booter runs at segment 0x9000, CS,DS,SS and ES all point at 0x9000.
 A varible such as char buf[1024] is in the data segment (if global) 
                                        or stack segment (if local).
+
 But it is also in the ES segment since ES=DS=SS.
 
              YOU MUST ACCEPT THE NOTION THAT
@@ -213,10 +215,16 @@ NO LONGER in your program (segment)!!!!
       int i;
       setes(0x1000);   // ES now points at segment 0x1000
 
-      for (i=0; i<12; i++){
+      // Loads 12 DIRECT BLOCKs of the file into 
+      // 0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
+
+      for (i = 0; i < 12; i++)
+      {
            getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
            inces();     // increment ES by 1KB (in 16-byte units)
       }
+
+      getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
 
       // READ INDIRECT BLOCKS BEFORE INC ES
       // Otherwise the read might be out of bounds or some such
