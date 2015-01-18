@@ -49,7 +49,7 @@ int get_string(char s[])
 
 int main(void)
 {
-    int i;
+    int i = 0;
 
     printf("BLK  [C  H  S]\n");
     printf("--------------\n");
