@@ -23,11 +23,10 @@ void chs(int bno)
 int prints(char *s)
 {
     int i = 0;
-    while(*(s + i) != '\0')
-    {
-        putchar(*(s + i));
-        i++;
-    }
+
+    while(s[i])
+        putchar(s[i++]);
+
     return i;
 }
 
@@ -49,32 +48,32 @@ int get_string(char s[])
 
 int main(void)
 {
-    int i;
+  //  int i;
 
-    printf("BLK  [C  H  S]\n");
-    printf("--------------\n");
+  //  printf("BLK  [C  H  S]\n");
+  //  printf("--------------\n");
 
-    for(i = 0; i < 1440; i++)
-        chs(i);
+  //  for(i = 0; i < 1440; i++)
+  //      chs(i);
 
-  //  char name[64];
-  //  while(1)
-  //  {
-  //      prints("What's your name? ");
-  //      int glen = get_string(name);
-  //      printf("get length = %d\n", glen);
+    char name[64];
+    while(1)
+    {
+        prints("What's your name? ");
+        int glen = get_string(name);
+        printf("get length = %d\n", glen);
 
-  //      if (name[0]==0)
-  //          break;
+        if (name[0]==0)
+            break;
 
-  //      prints("Welcome "); 
-  //      putchar('|');
-  //      int plen = prints(name); 
-  //      putchar('|');
-  //      printf("\nput length = %d\n", plen);
-  //      prints("\n\r");
-  //  }
-  //  prints("return to assembly and hang\n\r");
+        prints("Welcome "); 
+        putchar('|');
+        int plen = prints(name); 
+        putchar('|');
+        printf("\nput length = %d\n", plen);
+        prints("\n\r");
+    }
+    prints("return to assembly and hang\n\r");
 
     return 0;
 }
