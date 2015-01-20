@@ -2,6 +2,9 @@
 // 1091896
 // CptS 460
 
+// Note: Use identifier names <= 8 chars; the compiler will 
+// truncate long names to 8 chars, including the leading _ 
+
 #include <string.h>
 #include "ext2.h"
 
@@ -10,8 +13,8 @@
 
 // A 1.44MB floppy disk with 1024 byte blocks:
 #define BLOCK_SIZE 1024
-// 1440 disk blocks 
-#define NUM_BLOCKS 1440
+// 1440 disk blocks (0 - 1439)
+#define NUM_BLOCKS 1440 
 // 80 cylinders 
 #define NUM_C 80
 // 2 heads per cylinder
@@ -27,7 +30,19 @@ GD    *gp;
 INODE *ip;
 DIR   *dp;
 
+// Utility Functions 
+void print_num(u16 n);
+u16 prints(char *str);
+u16 gets(char str[], int max);
+u16 getblk(u16 blk, u8 buf[]);
+u16 search(char* target);
+
 // Exported from bs.s 
+char getc();
+void kc_putc(char c);
+void readfd(int cyl, int head, int sector, char *buf);
+void setes(int segment);
+void inces();
 // ------------------------------------------------------
 // char getc();
 // void kc_putc(char c);
@@ -36,75 +51,62 @@ DIR   *dp;
 // void inces();
 // ------------------------------------------------------
 
-// My utility functions 
-// (not allowed to compile multiple files with bcc -c, requires linking)
-u16 prints(char *str);
-u16 gets(char str[], int max);
-u16 getblk(u16 blk, u8 buf[]);
-u16 search(char* target);
-
-//                   ************* Main Logic *************                        
-//
-// (1). Prompt for filename to boot, e.g. mtx or image, etc. You may assume
-//      that all bootable files are in the /boot directory.
-//
-// (2). Find the file. Recall that "finding a file amounts to finding its 
-//      inode". 
-//
-// (3). From the file's inode, find the disk blocks of the file:
-//            i_block[0] to i_block[11] are DIRECT blocks, and
-//            i_blokc[12] points to INDIRECT blocks.
-//      MTX kerenl has at most 64 (1KB) blocks, so no double-indirect blocks.
-//
-// (4). Load the blocks of /boot/mtx into memory at the segment 0x1000.
-//
-// (5). Any errro condition, call error() in assembly.
-//
-// ==========================================================================  
-//
-// (6). If YOUR main() loads the disk blocks of mtx successfully, it returns to
-//      bs.s, which jumps to (0x1000, 0) to start up MTX.
-
 int main()
 { 
+    char file[64];
+
     u16 i, iblk;
     u8 buf1[BLOCK_SIZE], buf2[BLOCK_SIZE];
 
     prints("booter start\n\r");  
 
-    // read blk#2 to get group descriptor 0
+    // read block 2 to get group descriptor
     getblk((u16)2, buf1);
     gp = (GD*)buf1;
 
     // block where inodes start
-    iblk = (u16)gp->bg_inode_table; // typecast u32 to u16
+    iblk = (u16)gp->bg_inode_table;
+    prints("inode block = "); print_num(iblk); getc();
 
-    // only works < 10
-    prints("inode_block = "); putc(iblk + '0'); getc();
-
-    // (1).read first inode block into buf1[ ] // contains 8 inodes
+    // (1).read first inode block into buf1[ ] (contains 8 inodes)
     getblk(iblk, buf1);
     ip = (INODE*)buf1;
 
     // (2).let ip point to root INODE (inode #2)
-    ip++; // Inode count starts from 1 not 0, so 1->2 is a single increment
+    // Inode count starts from 1 not 0, so 1->2 is a single increment
+    ip++; 
 
     // (3).For each DIRECT block of / do:
     // read data block into buf2[ ]; // dir entries, need DIR*
     // step through the data block to print the names of the dir entries 
-
     // search / for "boot", get ino, get its block
-    u16 ino = search("boot");
+    u16 ino = search(ip, "boot");
+    ip = getino(ino);
 
-    // search boot for "mtx", get ino, get its block
-    char file[64];
+    // Prompt for filename to boot, e.g. mtx or image, etc. 
+    // You may assume that all bootable files are in the /boot directory.
     do
     {
         prints("Boot: ");
         gets(file, 64);
-        search(file);
+        ino = search(file);
+
+        if(!ino)
+            prints("File does not exist\n");
     }
     while(ino == 0);
+
+    // Find the file. 
+    // Recall that "finding a file amounts to finding its inode". 
+    ino = search(ip, file);
+    ip = getino(ino);
+
+    // From the file's inode, find the disk blocks of the file:
+    //       i_block[0] to i_block[11] are DIRECT blocks, and
+    //       i_blokc[12] points to INDIRECT blocks.
+    // MTX kernel has at most 64 (1KB) blocks, so no double-indirect blocks.
+
+    // Load the blocks of /boot/mtx into memory at the segment 0x1000.
 
     // Load
     // ES = 0x1000
@@ -121,13 +123,13 @@ int main()
     // Loads 12 DIRECT BLOCKs of the file into 
     // 0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
 
-    for (i = 0; i < 12; i++)
+    for (i = 0; i < NUM_DIRECT; i++)
     {
         getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
         inces();     // increment ES by 1KB (in 16-byte units)
     }
 
-    getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
+    getblk((u16)ip->i_block[NUM_DIRECT], 0);  // load block to (ES, 0)
 
     // READ INDIRECT BLOCKS BEFORE INC ES
     // Otherwise the read might be out of bounds or some such
@@ -135,12 +137,32 @@ int main()
     // The above code loads 12 DIRECT BLOCKs of the file into 
     // 0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
 
+    // Any errro condition, call error() in assembly.
+
+    // =====================================================================  
+
     prints("\n\rAll done!\n\r");
+
+    // If main() loads the disk blocks of mtx successfully, 
+    // it returns to bs.s, which jumps to (0x1000, 0) to start up MTX.
 
     return 0;
 }  
 
 //============================== Utility Functions ============================== 
+
+// Only works for 0 <= n < 10,000
+void print_num(u16 n)
+{
+    putc((n / 1000) + '0'); 
+    n =  (n % 1000);
+
+    putc((n / 100)  + '0'); 
+    n =  (n % 100);
+
+    putc((n / 10)   + '0'); 
+    putc((n % 10)   + '0'); 
+}
 
 // Print string
 u16 prints(char *str)
