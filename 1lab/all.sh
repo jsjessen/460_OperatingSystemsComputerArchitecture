@@ -1,6 +1,12 @@
 #!/bin/sh
 
-vdisk="mtximage"
+vdisk="my_mtximage"
+
+# Always use a fresh copy of mtximage to prevent 
+# past mistakes from impacting the current build 
+echo Replacing $vdisk with a fresh copy of the original... 
+rm -f $vdisk
+cp mtximage $vdisk
 
 echo -n Compiling assembly...
 if as86 -o bs.o bs.s; then
