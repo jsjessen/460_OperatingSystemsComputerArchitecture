@@ -1,5 +1,21 @@
                 CS460 LAB#1 QUESTIONS
 
+    PowerOn
+    CPU executes BIOS in ROM 
+    BIOS initializes itself
+        checks memory and other devices
+        looks for a system to boot in CMOS memory
+        Boots from a device by
+            Sector Size = 512 bytes
+            Load first sector of device into (segment,offset)=(0000:7C00)
+            Jumps there and lets CPU execute booter 
+    Booter relocates itself to a high memory area
+        Moved so as to not overwrite itself with the OS image
+        Continues to load OS image into memory
+        Transfers control to the OS
+    OS starts up
+
+
     Not due, just for review.
 
 1. Druing booting, what does BIOS do?_______________________________

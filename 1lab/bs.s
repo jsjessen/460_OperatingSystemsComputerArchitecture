@@ -22,6 +22,29 @@
 !  (7). Upon return from C code, bs.s jumps to (0x1000, 0) to start up MTX.
 !       In your C code, call error() if any error.
 
+
+!================================== LEGEND ================================== 
+!
+!   All registers are 16-bit
+!
+!   IP = Instruction Pointer
+!   PC = Program Counter --> next intstruction in memory
+!   SR = Status Register = mode, interruptMask, conditionCode; mode=System/User
+!   SP = Stack Pointer --> current stack top
+!   AX = Return Value
+!
+!   FLAG = Status Register
+!   
+!   General Registers: AX  BX  CX  DX  BP  SI  DI
+
+!   Segment Registers
+!   -----------------
+!   CS -> Code  Segment = program code or instructions
+!   DS -> Data  Segment = static and global data (ONE COPY only)
+!   SS -> Stack Segment = stack area for calling and local variables. 
+!   ES -> Extra Segment = temp area; may be used for malloc()/mfree()
+
+
 !=================================== bs.s =================================== 
     
        BOOTSEG =  0x9000        ! Boot Block is loaded again to here.

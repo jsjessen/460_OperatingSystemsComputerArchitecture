@@ -2,14 +2,20 @@
 // 1091896
 // CptS 460
 
-// Note: Use identifier names <= 8 chars; the compiler will 
+// Use identifier names <= 8 chars; the compiler will 
 // truncate long names to 8 chars, including the leading _ 
 
-#include <string.h>
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned long  u32;
+
 #include "ext2.h"
 
-#define NUM_DIRECT 12
+#define NUM_DIRECT_BLOCKS 12
 #define EMPTY 0
+#define NULL 0
+#define FAILURE 0
+#define SUCCESS 1
 
 // A 1.44MB floppy disk with 1024 byte blocks:
 #define BLOCK_SIZE 1024
@@ -22,54 +28,67 @@
 // 18 sectors under each head 
 #define NUM_S 18
 
+#define INODE_SIZE 128
+#define INODES_PER_BLOCK BLOCK_SIZE / INODE_SIZE
+
+#define MAX_DIR_NAME_LENGTH 256
+
 typedef struct ext2_group_desc  GD;
 typedef struct ext2_inode       INODE;
 typedef struct ext2_dir_entry_2 DIR;
 
-GD    *gp;
-INODE *ip;
-DIR   *dp;
 
 // Utility Functions 
 void print_num(u16 n);
 u16 prints(char *str);
-u16 gets(char str[], int max);
-u16 getblk(u16 blk, u8 buf[]);
-u16 search(char* target);
+u16 gets(char str[], u16 max);
+u16 get_block(u16 block, u8 buf[]);
+INODE get_inode(u16 ino);
+u16 search(INODE* ip, char* target);
 
 // Exported from bs.s 
 char getc();
-void kc_putc(char c);
-void readfd(int cyl, int head, int sector, char *buf);
-void setes(int segment);
+void putc(char c);
+void readfd(u16 cyl, u16 head, u16 sector, u8* buf);
+void setes(u16 segment);
 void inces();
+void error();
 // ------------------------------------------------------
 // char getc();
-// void kc_putc(char c);
-// void readfd(int cyl, int head, int sector, char *buf);
-// void setes(int segment);
+// void putc(char c);
+// void readfd(u16 cyl, u16 head, u16 sector, u8* buf);
+// void setes(u16 segment);
 // void inces();
+// void error();
 // ------------------------------------------------------
 
-int main()
+u16 iblock = 0;
+
+main()
 { 
+    GD    *gp = NULL;
+    INODE *ip = NULL;
+    DIR   *dp = NULL;
+
     char file[64];
 
-    u16 i, iblk;
+    u16 i;
+    u16 ino;
     u8 buf1[BLOCK_SIZE], buf2[BLOCK_SIZE];
 
     prints("booter start\n\r");  
+    error(); // test error
 
     // read block 2 to get group descriptor
-    getblk((u16)2, buf1);
+    get_block((u16)2, buf1);
     gp = (GD*)buf1;
 
     // block where inodes start
-    iblk = (u16)gp->bg_inode_table;
-    prints("inode block = "); print_num(iblk); getc();
+    iblock = (u16)gp->bg_inode_table;
+    prints("inode block = "); print_num(iblock); getc();
 
     // (1).read first inode block into buf1[ ] (contains 8 inodes)
-    getblk(iblk, buf1);
+    get_block(iblock, buf1);
     ip = (INODE*)buf1;
 
     // (2).let ip point to root INODE (inode #2)
@@ -80,8 +99,8 @@ int main()
     // read data block into buf2[ ]; // dir entries, need DIR*
     // step through the data block to print the names of the dir entries 
     // search / for "boot", get ino, get its block
-    u16 ino = search(ip, "boot");
-    ip = getino(ino);
+    ino = search(ip, "boot");
+    *ip = get_inode(ino);
 
     // Prompt for filename to boot, e.g. mtx or image, etc. 
     // You may assume that all bootable files are in the /boot directory.
@@ -89,7 +108,7 @@ int main()
     {
         prints("Boot: ");
         gets(file, 64);
-        ino = search(file);
+        ino = search(ip, file);
 
         if(!ino)
             prints("File does not exist\n");
@@ -99,7 +118,7 @@ int main()
     // Find the file. 
     // Recall that "finding a file amounts to finding its inode". 
     ino = search(ip, file);
-    ip = getino(ino);
+    *ip = get_inode(ino);
 
     // From the file's inode, find the disk blocks of the file:
     //       i_block[0] to i_block[11] are DIRECT blocks, and
@@ -123,13 +142,13 @@ int main()
     // Loads 12 DIRECT BLOCKs of the file into 
     // 0x1000, 0x1000+1k,0x1000+2K, ......,0x1000+11K
 
-    for (i = 0; i < NUM_DIRECT; i++)
+    for (i = 0; i < NUM_DIRECT_BLOCKS; i++)
     {
-        getblk((u16)ip->i_block[i], 0);  // load block to (ES, 0)
+        get_block((u16)ip->i_block[i], 0);  // load block to (ES, 0)
         inces();     // increment ES by 1KB (in 16-byte units)
     }
 
-    getblk((u16)ip->i_block[NUM_DIRECT], 0);  // load block to (ES, 0)
+    get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], 0);  // load block to (ES, 0)
 
     // READ INDIRECT BLOCKS BEFORE INC ES
     // Otherwise the read might be out of bounds or some such
@@ -177,7 +196,7 @@ u16 prints(char *str)
 // Get string
 // Assumes memory for str has been allocated
 // Max specifies the maximum number of characters to read
-u16 gets(char str[], int max)
+u16 gets(char str[], u16 max)
 {
     u16 i = 0;
     while(i < max)
@@ -193,6 +212,36 @@ u16 gets(char str[], int max)
     return i;
 }
 
+//u16 strcmp(const char* str1, const char* str2)
+//{
+//    u16 i = 0;
+//    while(str1[i] && str2[i])
+//    {
+//        if(str1[i] == str2[i])
+//            i++;
+//        else
+//            return str1[i] - str2[i];
+//    }
+//
+//    if(str1[i])
+//        return -1;
+//    else
+//        return 1;
+//}
+
+//char* strncpy(char* dest, const char* source, u16 n)
+//{
+//    u16 i;
+//    for(i = 0; i < n; i++)
+//    {
+//        if(source[i])
+//            dest[i] = source[i];
+//        else
+//            dest[i] = 0;
+//    }
+//    return dest;
+//}
+
 // File system uses LINEAR disk block numbers = 0,1,2,.... etc.
 // BIOS INT13 only accepts parameters in CHS format. 
 // 
@@ -206,51 +255,75 @@ u16 gets(char str[], int max)
 // head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| ... 
 // cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ...
 
-// when calling, cast u32 blk -> u16 blk or will shift buf[]
+// when calling, cast u32 block -> u16 block or will shift buf[]
 // remember, bcc makes it all 16 bit, so u32 takes 2 pushes (larger)
-u16 getblk(u16 blk, u8 buf[])
+u16 get_block(u16 block, u8 buf[])
 {
     // Convert linear block number to CHS format
     u16 c,h,s;
 
-    if(blk >= NUM_BLOCKS)
+    if(block >= NUM_BLOCKS)
     {
-        prints("error: getblk(): requested block outside of floppy disk range\n");
-        return 0;
+        prints("error: get_block(): requested block outside of floppy disk range\n");
+        error();
     }
 
-    s = blk * 2; // A 1024 byte disk block consists of 2 contigious 512 byte sectors
+    s = block * 2; // A 1024 byte disk block consists of 2 contigious 512 byte sectors
 
-    c = s / (NUM_H * NUM_S);
+    c = s / (NUM_H * NUM_S); // Cylinder counts from 0
     s = s % (NUM_H * NUM_S);
 
-    h = s / NUM_S;
-    s = s % NUM_S;
+    h = s / NUM_S; // Head counts from 0
+    s = s % NUM_S; // Sector countes from 1
 
     // Read 2 sectors from CHS into buf
     readfd(c, h, s, buf);
-    return blk;
+    return block;
 }
 
-u16 search(char* target)
+INODE get_inode(u16 ino)
+{
+    u8 buf[BLOCK_SIZE];
+    INODE* table = NULL;
+
+    u16 block = (ino - 1) / INODES_PER_BLOCK + iblock;
+    u16 index = (ino - 1) % INODES_PER_BLOCK;
+
+    get_block(block, buf);
+    table = (INODE*)buf; 
+    return table[index];
+}
+
+u16 search(INODE* ip, char* target)
 {
     u16 ino = 0;
-    u16 i;
-    for(i = 0; i < NUM_DIRECT; i++)
+    int i = 0;
+
+    if(ip->i_mode != 0x4000)
     {
-        if(ip->i_block[i] == EMPTY)
+        prints("search: Not a directory\n");
+        error();
+    }
+
+    for(i = 0; i < ((u16)(ip->i_size) / BLOCK_SIZE); i++)
+    {
+        u8 block[BLOCK_SIZE];
+        u8* cp = NULL;
+        DIR* dp = NULL;
+
+        if(ip->i_block[i] == EMPTY || i >= NUM_DIRECT_BLOCKS)
             break;
 
-        getblk((u16)ip->iblock[i], buf2);
+        get_block((u16)ip->i_block[i], block);
 
-        u8* cp = buf2;
-        DIR* dp = (DIR*)buf2;
+        cp = block;
+        dp = (DIR*)block;
 
-        while(cp < buf2 + BLOCK_SIZE)
+        while(cp < block + BLOCK_SIZE)
         {
-            char name[256];
+            char name[MAX_DIR_NAME_LENGTH];
             strncpy(name, dp->name, dp->name_len);
-            name[dp->name_len] = 0;
+            name[dp->name_len] = '\0';
 
             prints(name);
 
@@ -262,4 +335,6 @@ u16 search(char* target)
             dp = (DIR*)cp;     // pull dp along to the next record
         }
     }
+
+    return ino;
 }
