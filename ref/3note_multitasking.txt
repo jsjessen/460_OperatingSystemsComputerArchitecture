@@ -1,0 +1,558 @@
+               CS460 NOTES on Multitasking
+
+    No longer limited to 1kb!
+
+0. PRELIMINARY: In CS360 LAB #2, you implemented a 
+                printf(char *fmt,...)
+function, which can print items as %c, %s, %d, %u, %x, %l. 
+As you recall, printf() depends only on putc();
+
+Adapt YOUR printf() to 16-bit real mode by using only putc() of BIOS.
+
+ ==================== in case you forgot HOW =========================
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned long  u32;
+
+#define BASE 10
+
+char *tab = "0123456789ABCDEF";
+
+int rpu(u16 x)
+{
+  char c;
+  if (x){
+    c = tab[x % BASE];
+    rpu(x/BASE);
+    putc(c);
+  }
+} 
+
+int printu(u16 x)
+{
+  if (x==0){
+    putc('0');
+    return;
+  }
+  rpu(x);
+  putc(' ');
+}
+
+WRITE YOUR OWN functions:
+
+   int printd(int x): which prints an integer (which may be negative!!)
+   int printx(u16 x): which print s in HEX, e.g. a 16-bit address
+   int printl(u32 x): which prints x in LONG, e.g. inode and disk block numbers
+
+WRITE YOUR OWN  printf(char *fmt, ...) for formatted printing.
+=============================================================================
+
+Use the code you made for 360
+
+
+1. Multitasking
+
+    In general, multitasking refers to the ability of performing several 
+independent activities at the same time. For example, we often see people 
+talking on their cell phones or eating while driving. In a sense, these people 
+are doing multitasking, although a very bad kind. In computing, multitasking 
+refers to the execution of several independent tasks at the "same time". In a 
+uniprocessor (one CPU) system, only one task can execute at a time. Multitasking
+is achieved by multiplexing the CPU's execution time among different tasks, i.e.
+by switching the CPU execution from one task to another. If the switch is fast 
+enough, it gives the illusion that all the tasks are executing simultaneously. 
+This logical parallelism is called concurrency. In a multiprocessor system, 
+tasks can run on different CPUs in parallel in real time. In addition, each 
+processor may also do multitasking by multiplexing its execution time among 
+different tasks. Multitasking is the basis of almost all operating systems. It 
+is also the basis of concurrent programming in general.
+
+2. The Process Concept
+    An operating system is a multitasking system. In an operating system, tasks 
+are also called processes. For all practical purposes, the terms task and 
+process can be used interchangeably. 
+
+                           PROCESS
+
+   An execution image is a memory area containing the execution's code, data and
+stack. CODE DATA STACK (dead until cpu comes to execute, that execution is a process)
+
+            A PROCESS IS THE EXECUTION OF AN IMAGE. 
+
+It is a sequence of executions regarded by the OS kernel as a single entity for
+using system resources. System resources include memory space, I/O devices and,
+most importantly, CPU time. 
+
+In an OS kernel, each process is represented by a unique data structure, called
+the Process Control Block (PCB) or Task Control Block (TCB). In MTX, we shall 
+simply call it the PROC structure. Like a personal record, which records all the
+information of a person, a PROC structure contains all the information of a 
+process. In a single CPU system, only one process can be executing at a time. 
+The OS kernel usually uses a PROC pointer, running or current, to point at the
+PROC that is currently executing. In a real OS, the PROC structure may contain 
+many fields and quite large. To begin with, we shall define a very simple PROC 
+structure to represent processes.
+
+       typedef struct proc{
+               struct proc *next;
+               int         *ksp;
+               int         kstack[1024];
+       }PROC; 
+
+In the PROC structure, the next field is a pointer pointing to the next PROC 
+structure. It is used to maintain PROCs in dynamic data structures, such as link
+lists and queues. The ksp field is the saved stack pointer of a process when it 
+is not executing and kstack is the execution stack of a process. As we expand 
+the MTX kernel, we shall add more fields to the PROC structure later. 
+
+3. Development of the MTX Kernel
+
+3.1. A Simple Multitasking Program
+
+   We begin to develop the MTX kernel by a simple program, which is used to 
+illustrate two important points. First, how do processes in an OS begin? Second,
+how does an OS run different processes? The following program, denoted by MTX0,
+is similar to a booter. It can be compiled and linked by BCC to generate a 
+binary executable, as in 
+
+           as86 -o ts.o  ts.s
+           bcc  -c -ansi t.c
+           as86 -d -o mtx0 ts.o t.o mtxlib /usr/lib/bcc/libc.a
+
+where mtxlib is a link library containing I/O functions based on BIOS. To run 
+the mtx0 program, we need a MTX booter, which loads the mtx0 image to the 
+segment 0x1000 and then sends the CPU to execute the mtx0 code. Assume that 
+FDmtx is a bootable floppy disk image of MTX, i.e. it is an EXT2 file system 
+with a MTX booter in block 0. At this moment, the contents of the file system do
+not matter. All we need is a boot directory containing a MTX kernel image. 
+Mount the FDmtx disk image and copy mtx0 to the boot directory, as in
+
+           mount -o loop FDmtx /mnt  
+           cp mtx0  /mnt/boot/mtx0  
+           umount   /mnt
+
+We use a bootable FD image mainly for convenience since it can be used directly
+on either a real PC or a PC emulator. For example, to boot up and run mtx0 under
+QEMU, enter 
+           qemu -fda FDmtx -no-fd-bootchk
+
+To run it under DOSEMU or VMware, configure the virtual machine to use FDmtx
+as a virtual floppy disk, etc. The following lists the assembly and C code of 
+the MTX0 program. The assembly code syntax is that of BCC's as86 assembler.
+ 
+! ------------------------ ts.s file --------------------------- 
+       .globl _tswitch                                   !EXPORT to C
+       .globl _main,_running,_scheduler,_proc0,_procSize !IMPORT from C
+
+start:  mov   ax,cs          ! set DS=SS=CS = 0x1000
+        mov   ds,ax
+        mov   ss,ax
+        mov   sp,#_proc0     ! set sp point to proc0 defined in C code
+        add   sp,_procSize   ! let sp point to high end of proc0
+        call  _main          ! call main() in C
+        hlt                  ! if main() returns, just halt.
+dead:   jmp   dead
+
+_tswitch:                    ! tswitch() function 
+SAVE:   push  ax
+        push  bx
+        push  cx
+        push  dx
+        push  bp
+        push  si
+        push  di
+        pushf
+        mov   bx,_running    ! bx -> proc 
+        mov   2[bx],sp       ! save sp to proc.ksp
+FIND:   call _scheduler      ! call scheduler() in C
+RESUME: mov  bx,_running     ! bx -> running proc
+        mov  sp,2[bx]        ! load sp with proc.ksp
+        popf
+        pop   di
+        pop   si
+        pop   bp
+        pop   dx
+        pop   cx
+        pop   bx
+        pop   ax
+        ret
+
+/************* t.c file ******************/
+#define SSIZE  1024          // 2KB stack size per PROC     
+typedef struct proc{         // process structure
+        struct proc *next;   // next PROC pointer
+        int  *ksp;           // saved sp when process is not running
+        int  kstack[SSIZE];  // per process kernel mode stack
+}PROC;                       // PROC is a type
+int  procSize = sizeof(PROC);
+PROC proc0, *running;        // proc0 structure and running pointer
+
+int scheduler()
+{ 
+    running = &proc0; 
+}
+
+main()
+{
+  running = &proc0;
+  printf("call tswitch()\n"); // Your printf
+     tswitch();
+  printf("back to main()\n");
+}
+
+
+  During booting, the MTX booter loads mtx0 to the segment 0x1000 and jumps to
+there to execute the mtx0 code. When execution starts in ts.s, it sets all 
+segment registers to 0x1000 in order to conform to the program's one-segment 
+memory model. Then it sets the stack pointer to the high end of proc0, so that 
+proc0.kstack is the initial stack area. Up to this point, the system has no 
+notion of any process because there is none. Then the assembly code calls main()
+in C. When control enters main(), we have an image in execution. By the very 
+definition of process, which is the execution of an image, we have a process in 
+execution, although the system still does not know which process is executing. 
+In main(), after setting running to point at proc0, the system is now running 
+the process proc0. This is how a typical OS kernel starts to run an initial 
+process when it begins. The initial process is handcrafted or created by brute 
+force.
+    
+    Starting from main(), the run-time behavior of the program can be traced and
+explained by the execution diagram of Figure 4.1, in which the key steps are 
+labeled (1) to (6).
+
+  main()                  
+{ 
+  (1)  running=&proc0;                    proc0 <----- running       
+    (2)  tswitch();                          ksp  
+             .<------| (3) SAVE: push ===>    |       (4):scheduler()
+         printf();   |                        |
+  }                  |                        sp
+ PROC0  -------------|------------------------|-----------
+ stack: |main frame|rPC|ax|bx|cx|dx|bp|si|di|flag|
+        ------------------------------------------------- 
+                   |(6)|  <=== pop stack    sp    <== (5) RESUME:  
+
+                  Figure 4.1. Execution Diagram of Proc0
+
+At (1), it sets running to point at proc0, as shown on the right-hand side of 
+the diagram. If we consider proc0 as the PROC structure of a process, the system
+is now running the process proc0. 
+At (2), it calls tswitch(), which saves the return address, rPC, in stack. 
+At (3), it executes the SAVE part of tsiwtch(), which saves CPU registers into 
+stack and saves the stack pointer sp into proc0.ksp. 
+At (4), it calls scheduler(), which sets running to point at proc0 again. For 
+now, this is redundant since running already points at proc0. Then it executes 
+the RESUME part of tswitch(). 
+At (5), it sets sp to proc0.ksp, which is again redundant because they are 
+already the same. Then it pops the stack, which restores the saved CPU registers
+At (6), it executes ret at the end of RESUME, which returns to the calling place
+of tswitch().
+
+4.3.2. Context Switching
+
+   Besides printing a few messages, the program seems useless since it does 
+practically nothing. However, it is the basis of all multitasking programs. To 
+see this, assume that we have another PROC structure, proc1, which called 
+tswitch() and executed the SAVE part of tswitch() before. Then proc1's ksp must 
+point to its stack area, which contains saved CPU registers and a return address
+from where it called tswitch(), as shown in the figure 4.2.
+
+     Proc1's code space:                            scheduler(): 
+     ------------------                                    
+          ........;                          proc1 <-- running 
+          tswitch();                          ksp        (4)         
+              .<------| proc1 SAVED registers  |         
+          ........;   |                        |
+   proc1 -------------|------------------------|------
+   stack:|stackframe|RPC|AX|BX|CX|DX|BP|SI|DI|FLAG|
+         --------------------------------------------- 
+                       |(6)|  <=== pop stack      sp <== (5) RESUME: 
+
+                Figure 4.2. Execution Diagram of Proc1
+
+    In scheduler(), if we let running point to proc1, as shown in the right-hand
+side of the figure, the RESUME part of tswitch() would change sp to proc1's ksp.
+Then the RESUME code would operate on the stack of proc1. This would restore the
+saved registers of proc1, causing proc1 to resume execution from where it called
+tswitch() earlier. This changes the execution environment from proc0 to proc1.
+
+                    Context Switching: 
+
+ Changing the execution environment of one process to that of another is called 
+ context switching, which is the basic mechanism of multitasking.
+
+
+
+2. A Simple Multi-tasking System
+
+    With context switching, we can create a multitasking environment containing
+many processes. In the next program, denoted by MTX4.1, we define NPROC = 9 PROC
+structures, each representing a process. Each PROC has a unique pid number for 
+identification and a kstack, which is the execution stack of the process. The 
+PROCs are initialized as follows.
+
+        running -> P0 -> P1 -> P1 -> P2 ->....-> P8->|                
+                   |                                 |
+                   <------------------------------<---
+
+ P0 is the initial running process. All the PROCs form a circular link list for
+simple process scheduling. Each of the PROCs, P1 to P8, is initialized in such 
+a way that it is ready to resume running from a body() function. Since the 
+initialization of the PROC stack is crucial, we explain the steps in detail. 
+Although the processes never existed before, we may pretend that they not only 
+existed before but also ran before. The reason why a PROC is not running now is
+because it called tswitch() and gave up CPU earlier. If so, the PROC's ksp must
+point to its stack area containing saved CPU registers and a return address, as
+shown in Figure 4.3.
+
+   proc.kstack  |-1  -2  -3  -4  -5  -6  -7  -8  -9  | 
+                --------------------------------------------
+   High address |rPC|ax |bx |cx |dx |bp |si |di |flag|
+                --|-------------------------------|---------                   
+                 code                          proc.ksp
+
+                  Figure 4.3. Process Stack Contents
+
+   Since the PROC never really ran before, we may assume that its stack was 
+initially empty, so that the return address, rPC, is at the very bottom of the 
+stack. What should be the rPC?  It may point to any executable code, e.g. the 
+entry address of a body() function. What about the "saved" registers? Since the
+PROC never ran before, the register values do not matter, so they can all be 
+initialized to 0. Accordingly, we initialize each of the PROCs, P1 to P8, as 
+shown in Figure 4.4.
+                                              ----------
+                                              |PROC.ksp| 
+                                              -----|----
+                  -1  -2  -3  -4  -5  -6  -7  -8  -9   Low Address  
+                --------------------------------------------------
+   proc.kstack: |body| 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+                --------------------------------------------------
+                retPC  ax  bx  cx  dx  bp  si  di flag
+ 
+                Figure 4.4. Initial Stack Contents of a Process
+
+With this setup, when a PROC becomes running, i.e. when running points to the 
+PROC, it would execute the RESUME part of tswitch(), which restores the "saved"
+CPU registers, causing the execution to return to the beginning of the body() 
+function. 
+
+    After initialization, P0 calls tswitch() to switch process. In tswitch(), P0
+saves CPU registers into its own stack, saves the stack pointer into its 
+PROC.ksp and calls scheduler(). The scheduler() function simply changes running 
+to running->next. So P0 switches to P1. P1 begins by executing the RESUME part 
+of tswitch(), causing it to resume to the body() function. While in body(), the 
+running process prints its pid and prompts for an input char. Then it calls 
+tswitch() to switch to the next process, etc. Since the PROCs are in a circular
+link list, they will take turn to run. The assembly code is the same as before,
+except for the initial stack pointer, which is set to proc[0]'s kstack when 
+execution begins, as in
+
+!----------------- s.s file -----------------------------------------------
+        .globl _tswitch,_getc,_putc                        ! EXPORT these 
+        .globl _main,_running,_scheduler,_proc,_procSize   ! IMPORT these
+
+start:
+        mov     ax,cs                   ! establish segments 
+        mov     ds,ax                   ! Let DS,SS,ES = CS=0x1000.
+        mov     ss,ax                   
+        mov     es,ax
+	
+	mov     sp,#_proc               ! sp -> proc[0]
+	add     sp,_procSize            ! sp -> proc[0]'s HIGH END
+	
+        call _main                      ! call main() in C
+
+dead:	jmp dead                        ! loop if main() ever returns
+
+	
+_tswitch:
+SAVE:	push ax
+        push bx
+	push cx
+	push dx
+	push bp
+	push si
+	push di
+        pushf
+	mov   bx, _running
+	mov   2[bx], sp
+
+FIND:	call _scheduler
+	
+RESUME:	mov   bx, _running
+	mov   sp, 2[bx]
+	popf
+	pop  di
+	pop  si
+	pop  bp
+	pop  dx
+	pop  cx
+	pop  bx
+	pop  ax
+	ret
+
+_getc:
+        xorb   ah,ah 
+        int    0x16  
+        ret 
+
+_putc:           
+        push   bp
+        mov    bp,sp
+        movb   al,4[bp]
+        movb   ah,#14  
+        mov    bx,#0x000B   ! CYAN color
+        int    0x10    
+        pop    bp
+        ret
+!----------------- end of s.s file ---------------------------
+
+
+The following lists the C code of the multitasking program.
+
+
+/************ t.c file **********************************/
+#define NPROC     9        
+#define SSIZE  1024                /* kstack int size */
+
+#define DEAD      0                /* proc status     */
+#define READY     1      
+
+typedef struct proc{
+    struct proc *next;   
+           int  ksp;               /* saved sp; offset = 2 */
+           int  pid;
+           int  status;            /* READY|DEAD, etc */
+           int  kstack[SSIZE];     // kmode stack of task
+}PROC;
+
+
+#include "io.c" /**** USE YOUR OWN io.c with YOUR printf() here *****/
+
+PROC proc[NPROC], *running;
+
+int  procSize = sizeof(PROC);
+
+/****************************************************************
+ Initialize the proc's as shown:
+
+ running->proc[0]--> proc[1] --> proc[2] ... --> proc[NPROC-1] -->
+                       ^                                         |
+                       |<---------------------------------------<-
+
+ Each proc's kstack contains:
+      retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
+*****************************************************************/
+
+int body();  
+
+int initialize()
+{
+  int i, j;
+  PROC *p;
+
+  for (i=0; i < NPROC; i++){
+    p = &proc[i];
+    p->next = &proc[i+1];
+    p->pid = i;
+    p->status = READY;
+    
+    if (i){     // initialize kstack[ ] of proc[1] to proc[N-1]
+      for (j=1; j < 10; j++)
+          p->kstack[SSIZE - j] = 0;          // all saved registers = 0
+      p->kstack[SSIZE-1]=(int)body;          // called tswitch() from body
+      p->ksp = &(p->kstack[SSIZE-9]);        // ksp -> kstack top
+    }
+  }
+  running = &proc[0];
+  proc[NPROC-1].next = &proc[1];
+  printf("initialization complete\n"); 
+}
+
+char *gasp[NPROC]={
+     "Oh! You are killing me .......\n",
+     "Oh! I am dying ...............\n", 
+     "Oh! I am a goner .............\n", 
+     "Bye! Bye! World...............\n",      
+};
+
+int grave(){
+  printf("\n*****************************************\n"); 
+  printf("Task %d %s\n", running->pid,gasp[(running->pid) % 4]);
+  printf("*****************************************\n");
+  running->status = DEAD;
+
+  tswitch();   /* journey of no return */        
+}
+
+int ps()
+{
+  PROC *p;
+
+  printf("running = %d\n", running->pid);
+
+  p = running;
+  p = p->next;
+  printf("readyProcs = ");
+  while(p != running && p->status==READY){
+    printf("%d -> ", p->pid);
+    p = p->next;
+  }
+  printf("\n");
+}
+
+int body()
+{
+   char c;
+   while(1){
+      ps();
+      printf("I am Proc %d in body()\n", running->pid);
+      printf("Input a char : [s|q] ");
+       c=getc();
+       switch(c){
+            case 's': tswitch(); break;
+            case 'q': grave();   break;
+            default :            break;  
+       }
+   }
+}
+
+main()
+{
+ printf("Welcome to the 460 Multitasking System\n");
+   initialize();
+   printf("P0 switch to P1\n");
+   tswitch();
+ printf("P0 resumes: all dead, happy ending\n");
+}
+
+int scheduler()
+{
+    PROC *p;
+    p = running->next;
+
+    while (p->status != READY && p != running)
+      p = p->next;
+
+    if (p == running)
+       running = &proc[0];
+    else
+       running = p;
+
+    printf("\n-----------------------------\n");
+    printf("next running proc = %d\n", running->pid);
+    printf("-----------------------------\n");
+}
+
+//=======================================================================
+# mk file
+
+   as86 -o s.o s.s
+   bcc  -c -ansi t.c
+   ld86 -d s.o t.o mylib /usr/lib/bcc/libc.a
+
+   # USE the mtximage VIRTUAL FD 
+   mount -o loop mtximage /mnt
+   cp a.out /mnt/boot/mtx
+   umount /mnt
+
+#  Use YOUR MTX booter of LAB#1 to boot up the new mtx

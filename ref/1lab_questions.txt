@@ -1,0 +1,185 @@
+                CS460 LAB#1 QUESTIONS
+
+    Not due, just for review.
+
+1. Druing booting, what does BIOS do?_______________________________
+
+    Looks for boot device, once found, 
+    reads a 512 bytes 
+    then cpu begins execution
+
+    Read 2 sectors to 0x9000
+
+   How many sectors does BIOS load from the boot device?____________
+
+   1 sector
+
+   Where in memory does BIOS load the booter?________________________
+
+   segment: 0
+   offset 7C00
+
+
+2. The booter's bs.s file begins with
+   ------------------------------------------------------------
+        mov  ax,#0x9000    ! set ES to 0x9000
+        mov  es,ax
+        xor  bx,bx          ! clear BX = 0
+
+        xor  dx,dx          ! DH=head=0,   DL=drive=0
+        xor  cx,cx          ! CL=cylinder, CL=sector
+        incb cl             ! BIOS counts sector from 1
+        mov  ax, #0x0202    ! AH=READ      AL=2 sectors
+        int  0x13           ! call BIOS INT-13
+
+        load 2 sectors to 0x9000 (1kb)
+        because BIOS only moved half (1 sector
+
+(a). What does this piece code do?_____________________________________
+
+        jmpi start,0x9000   ! CS=0x9000, IP=start
+
+        performs long jump to high memory
+        otherwise will be killed before loading complete
+        will be loading data to current location, so needs to get out of the way
+
+(b). After executing the above jmpi instruction, where is CPU executing?
+     _________________________________________________________________
+
+
+3. The booter's bs.s code continues with
+
+start:                    
+        mov  ax,cs          ! Set segment registers for CPU
+        mov  ds,ax          ! we know ES,CS=0x9000. Let DS=CS  
+        mov  ss,ax          ! SS = CS ===> all point at 0x9000
+        mov  es,ax
+        mov  sp,#8192       ! SP = 8192 above SS=0x9000
+
+        using one-segment
+        comply with this model
+        by moving call, data stack, etc... to one-segment
+        need tools to run c (using bcc to generate 16-bit code, because only 16-bit code can be run in 16-bit real mode) 
+
+        bss - uninitialized globals
+        data/bss (data area) allocated just after 0x9000 1kb block
+        stack after data area (when enter main, local variables)
+        end point 8kb
+        so in 8kb there is code, then data area, then stack
+        at most 7kb for data area and the stack
+        sp (stack pointer) at 8kb, moving toward data area
+
+(a). What does this piece of code do?________________________________________
+
+    all segment registers (SS, DS, CS, ES) to point at beginning (0x9000)
+    so it knows where the one-segment begins
+
+(b). WHY DO WE HAVE TO SET the CPU's CS, DS, SS to 0x9000?___________________
+    
+    because 1 segment memory model
+    tell cpu complying with that model
+
+(c). sp=#8192: What's the PHYSICAL address of the stack pointer?_____________
+
+
+4. In your booter, you MUST write a prints(char *s) function to print a
+   string. WHY can't you use printf() of the C library?____________________
+
+   printf relies on putc, which uses system call but there is no system (OS) yet
+   must use BIOS for I/O
+
+
+5. What's your algorithm which converts a disk block number, blk, to CHS format?
+
+    s = blk * 2; // A 1024 byte disk block consists of 2 contigious 512 byte sectors
+
+    c = s / (NUM_H * NUM_S);
+    s = s % (NUM_H * NUM_S);
+
+    h = s / NUM_S;
+    s = s % NUM_S;
+
+6. The assembly function readfd(int cyl, head,sector, char *buf) is
+---------------------------------------------------------------------
+_readfd:                             
+       push  bp
+       mov   bp,sp            ! bp = stack frame pointer
+HERE:
+       movb  dl, #0x00        ! drive 0=FD0 (floppy drive 0)
+       movb  dh, 6[bp]        ! head
+       movb  cl, 8[bp]        ! sector
+       incb  cl
+       movb  ch, 4[bp]        ! cyl
+       mov   bx, 10[bp]       ! BX=buf ==> memory addr=(ES,BX)
+       mov   ax, #0x0202      ! READ 2 sectors to (EX, BX)
+
+                            ! Draw diagram of the stack
+                            ! BIOS 1913
+                            ! bx is the buf (address offset from ES (0x9000), within 8kb body)
+
+       int  0x13              ! call BIOS to read the block 
+       jb   _error            ! to error if CarryBit is on [read failed]
+
+       pop  bp                
+       ret
+------------------------------------------------------------------------
+It is called as  readfd(cyl, head, sector, buf) from C code.
+
+later move ES to 0x1000, then move 1kb block, increment, then move to 0x2000, increment,...
+
+(a). Draw a diagram to show the stack contents at the label HERE:
+
+
+(b). HOW DOES readfd() ACCESS the parameters cyl, head, sector, buf?
+
+(c). What is the PHYSICAL address used by BIOS to read the disk block?
+     ________________________________________________________________
+
+
+7. In YOUR booter, how did you find the root INODE?
+
+    get group descriptor
+    find block where inodes start
+    get inode 2
+
+    need to be carefull with bufs
+    need to alternate such that important data not overwritten
+    when done, then can overwrite
+ 
+8. From the root INODE, how did you find the INODE of /boot?
+
+    search through dir entries of root inode (i_block[0] ... i_block[11])
+
+9. Assume: you have found the INODE of /boot/mtx. The INODE has
+   
+   12 DIRECT blocks:       i_block[0] to i_block[11] 
+   MANY INDIRECT blocks:
+
+(a). How did you load the blocks to the segment 0x1000?
+
+    load block into buffer
+    ...
+
+    be careful, block numbers are type long, must caste to reduce to 16-bit
+    max block number 1440 on floppy disk
+
+=====================================================================
+
+10. The booter reloads itself to the segment 0x9000 and runs in that segment.
+
+ASSUME: The booter runs DIRECTLY from where BIOS loaded it, i.e. in the segment
+        0x07C0. NOTE: (0x0000, 0x7C00) is the segment 0x07C0 ---> 0x1000 (where stack pointer should start)
+
+(a). How to modify the bs.s code to "load in the second half" of the booter?
+
+(b). How to set the CS, DS, SS, ES to 0x07C0?________________________________
+
+(c). MTX is still loaded to the segment 0x1000. How big can the stack be?_____
+ 
+ generate binary executable
+ cut head off
+ replace first 1kb block with it
+
+ BIOS moves a little
+ bs.s moves the rest
+
