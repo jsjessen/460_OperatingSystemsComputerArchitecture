@@ -36,6 +36,10 @@ typedef struct ext2_dir_entry_2 DIR;
 // 18 sectors under each head 
 #define NUM_S 18
 
+#define INT_SIZE 4 //bytes
+#define U16_SIZE 2 //bytes
+#define U16_PER_INT (INT_SIZE / U16_SIZE)
+
 #define ROOT_INODE 2
 #define NUM_DIRECT_BLOCKS 12
 #define MAX_NAME_LENGTH 256
@@ -51,12 +55,12 @@ INODE* get_inode(u16 ino);           // uses buf1
 u16 search(INODE* ip, char* target); // uses buf2
 
 // Imported from bs.s 
-char getc();
+char getc(void);
 void putc(char c);
 void readfd(u16 cyl, u16 head, u16 sector, u8 buf[]);
 void setes(u16 segment);
-void inces();
-void error();
+void inces(void);
+void error(void);
 
 // Globals
 u8 buf1[BLOCK_SIZE], buf2[BLOCK_SIZE];
@@ -78,7 +82,7 @@ int main()
 
     // Let ip point to Root Inode
     ip = get_inode(ROOT_INODE);
-    
+
     // Search root inode for "boot"
     ino = search(ip, "boot"); // = 13
     ip = get_inode(ino); 
@@ -92,36 +96,36 @@ int main()
     ino = search(ip, os_name); // = 34
     ip = get_inode(ino);
 
-    // Load the blocks of the OS into memory at segment 0x1000
+    // Load the data blocks of the OS into memory at segment 0x1000
+    // ------------------------------------------------------------
 
-    get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], buf2); // Must do this BEFORE setes()
-    setes(START_SEGMENT);   // ES now points at segment 0x1000
+    // IMPORTANT get indirect block BEFORE moving ES
+    get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], buf2);
+
+    // ES now points at segment 0x1000
+    setes(START_SEGMENT);   
 
     // Load direct blocks (111 - 122)
-    for (i = 0; i < NUM_DIRECT_BLOCKS; i++)
+    for (i = 0; i < NUM_DIRECT_BLOCKS && (u16)ip->i_block[i] != EMPTY; i++)
     {
-        if((u16)ip->i_block[i] == EMPTY)
-            break;
-
-        // When read/write disk, BIOS INT13 uses (segment, offset)=(ES, BX)
-        // readfd sets BX to the address of buf
-        // so by using 0, instead of reading a block and writing to buf
+        // When read/write disk, BIOS INT13 uses (segment, offset) = (ES, BX)
+        // In bs.s readfd() sets BX to the address of the buf parameter
+        // So by using 0, instead of reading a block and writing to a buffer,
         // the block is read and written to (ES, 0)
         get_block((u16)ip->i_block[i], 0); 
         inces(); // increment ES by 1KB
     }
 
     // Load indirect blocks (123 -> 124 - 155) 
-    // i should get to 31
-    for(i = 0; i < (BLOCK_SIZE / 4) * 2; i += 2)
+    for(i = 0; i < BLOCK_SIZE / U16_PER_INT && ((u16*)buf2)[i] != EMPTY; i += 2)
     {
-        if(((u16*)buf2)[i] == EMPTY)
-            break;
-
+        // When read/write disk, BIOS INT13 uses (segment, offset) = (ES, BX)
+        // In bs.s readfd() sets BX to the address of the buf parameter
+        // So by using 0, instead of reading a block and writing to a buffer,
+        // the block is read and written to (ES, 0)
         get_block(((u16*)buf2)[i], 0);
         inces(); // increment ES by 1KB
     }
-
     // MTX kernel has at most 64 (1KB) blocks, so no double-indirect blocks.
 
     // Return to bs.s and jump to (0x1000, 0) to start up MTX
@@ -141,8 +145,7 @@ void prints(char *str)
 // Assumes memory for str has been allocated
 void gets(char str[])
 {
-    // 13 is the Carriage Return
-    while((*(str) = getc()) != 13)
+    while((*(str) = getc()) != '\r')
         putc(*str++); // So user can see what they're typing
 
     *str = '\0'; // Append with null char
@@ -152,27 +155,27 @@ void get_block(u16 bno, u8 buf[])
 {
     u16 c,h,s;
 
-    // File system uses LINEAR disk block numbers = 0,1,2,.... etc.
-    // BIOS INT13 only accepts parameters in CHS format. 
-    // 
-    // The PHYSICAL layout of a floppy disk is as follows, where
-    // cyl, head, sector all count from 0.
-    // 
-    //        ----------------------------------------------------------------------
-    // linear |s0 s1 .... s17 | s18  .... s35 | s36 .....   s53|s54         s71| ...
-    //        ----------------------------------------------------------------------
-    // sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
-    // head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| ... 
-    // cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ...
-    // Convert linear block number to CHS format
+// File system uses LINEAR disk block numbers = 0,1,2,.... etc.
+// BIOS INT13 only accepts parameters in CHS format. 
+// 
+// The PHYSICAL layout of a floppy disk is as follows, where
+// cyl, head, sector all count from 0.
+// 
+//        ----------------------------------------------------------------------
+// linear |s0 s1 .... s17 | s18  .... s35 | s36 .....   s53|s54         s71| ...
+//        ----------------------------------------------------------------------
+// sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
+// head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| ... 
+// cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ...
+// Convert linear block number to CHS format
 
-    s = bno * 2; // A 1024 byte disk block consists of 2 contigious 512 byte sectors
+    s = bno * 2; // A 1024 byte block consists of 2 contigious 512 byte sectors
 
     c = s / (NUM_H * NUM_S); 
     s = s % (NUM_H * NUM_S);
 
     h = s / NUM_S; 
-    s = s % NUM_S; // sector count from 1 adjusted in bs.s 
+    s = s % NUM_S; // sector counts from 1, but it adjusted in bs.s 
 
     // Read 2 sectors from CHS into buf
     readfd(c, h, s, buf);
@@ -191,13 +194,10 @@ INODE* get_inode(u16 ino)
 u16 search(INODE* ip, char* target)
 {
     u16 i;
-    for(i = 0; i < ((u16)(ip->i_size) / BLOCK_SIZE); i++)
+    for(i = 0; i < (u16)ip->i_size / BLOCK_SIZE && i < NUM_DIRECT_BLOCKS; i++)
     {
         u8* bp;
         DIR* dp;
-
-        if(ip->i_block[i] == EMPTY || i >= NUM_DIRECT_BLOCKS)
-            break;
 
         get_block((u16)ip->i_block[i], buf2);
         bp = buf2;
@@ -212,5 +212,8 @@ u16 search(INODE* ip, char* target)
             dp = (DIR*)bp;     // pull dp along to the next record
         }
     }
+    prints("\n\rFile does not exist!"); getc();
+    error();
+
     return FAILURE;
 }

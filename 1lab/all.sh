@@ -1,5 +1,6 @@
 #!/bin/sh
 
+original="mtximage"
 vdisk="my_mtximage"
 
 red='\033[0;31m'
@@ -9,7 +10,7 @@ NC='\033[0m' # No Color
 
 echo -n Replacing $vdisk with a fresh copy of the original... 
 rm -f $vdisk
-cp mtximage $vdisk
+cp $original $vdisk
 echo "${green}OK${NC}"
 
 echo -n Compiling assembly code to 16-bit object code...
