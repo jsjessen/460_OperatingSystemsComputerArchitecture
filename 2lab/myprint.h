@@ -21,6 +21,7 @@ typedef unsigned long  u32;
 void rpu(u16 n, u16 base);
 void prints(char *s);            // String
 void printd(int n);              // Signed Int
+void printu(u16 n);              // Unsigned Short 
 void printl(u32 n);              // Unsigned Long
 void printo(u16 n);              // OCTAL
 void printx(u16 n);              // HEX

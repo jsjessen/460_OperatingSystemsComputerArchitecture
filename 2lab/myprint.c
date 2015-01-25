@@ -39,6 +39,15 @@ void printd(int n)
     }
 }
 
+// Unsigned Short 
+void printu(u16 n)
+{
+    if(n == 0)
+        putc('0');
+    else
+        rpu(n, DEC);
+}
+
 // Unsigned Long
 void printl(u32 n)
 {
@@ -105,8 +114,12 @@ void myprintf(char *fmt, ...)
                     prints((char*)(*ip++));
                     break;
 
-                case 'd': // int (signed)
+                case 'd': // signed int 
                     printd(*ip++);
+                    break;
+
+                case 'u': // unsigned short 
+                    printu(*ip++);
                     break;
 
                 case 'l': // unsigned long 
