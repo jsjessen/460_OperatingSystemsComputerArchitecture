@@ -96,7 +96,7 @@ structure to represent processes.
        typedef struct proc{
                struct proc *next;
                int         *ksp;
-               int         kstack[1024];
+               int         kstack[1024]; // stack pointer points to the end of this
        }PROC; 
 
 In the PROC structure, the next field is a pointer pointing to the next PROC 
@@ -117,7 +117,7 @@ binary executable, as in
 
            as86 -o ts.o  ts.s
            bcc  -c -ansi t.c
-           as86 -d -o mtx0 ts.o t.o mtxlib /usr/lib/bcc/libc.a
+           as86 -d -o mtx0 ts.o t.o mtxlib /usr/lib/bcc/libc.a  // ORDER MATTERS
 
 where mtxlib is a link library containing I/O functions based on BIOS. To run 
 the mtx0 program, we need a MTX booter, which loads the mtx0 image to the 
@@ -134,6 +134,7 @@ Mount the FDmtx disk image and copy mtx0 to the boot directory, as in
 We use a bootable FD image mainly for convenience since it can be used directly
 on either a real PC or a PC emulator. For example, to boot up and run mtx0 under
 QEMU, enter 
+
            qemu -fda FDmtx -no-fd-bootchk
 
 To run it under DOSEMU or VMware, configure the virtual machine to use FDmtx
@@ -144,6 +145,7 @@ the MTX0 program. The assembly code syntax is that of BCC's as86 assembler.
        .globl _tswitch                                   !EXPORT to C
        .globl _main,_running,_scheduler,_proc0,_procSize !IMPORT from C
 
+! create first process, brute force
 start:  mov   ax,cs          ! set DS=SS=CS = 0x1000
         mov   ds,ax
         mov   ss,ax
@@ -153,11 +155,16 @@ start:  mov   ax,cs          ! set DS=SS=CS = 0x1000
         hlt                  ! if main() returns, just halt.
 dead:   jmp   dead
 
-_tswitch:                    ! tswitch() function 
+! the process that is running, is always pointed at by the variable _running
+! if _running points at some process, that process is running
+
+! to change running process, A process must transfer _running to B process
+
+_tswitch:                    ! tswitch() function, switches to another process
 SAVE:   push  ax
         push  bx
         push  cx
-        push  dx
+        push  dx    ! A proc, save your state
         push  bp
         push  si
         push  di
@@ -166,16 +173,16 @@ SAVE:   push  ax
         mov   2[bx],sp       ! save sp to proc.ksp
 FIND:   call _scheduler      ! call scheduler() in C
 RESUME: mov  bx,_running     ! bx -> running proc
-        mov  sp,2[bx]        ! load sp with proc.ksp
+        mov  sp,2[bx]        ! load sp with proc.ksp (2 bytes)
         popf
         pop   di
         pop   si
         pop   bp
-        pop   dx
+        pop   dx    ! B proc, load your previously saved state
         pop   cx
         pop   bx
         pop   ax
-        ret
+        ret         ! now stack pointer points at rPC (6)
 
 /************* t.c file ******************/
 #define SSIZE  1024          // 2KB stack size per PROC     
@@ -233,6 +240,8 @@ labeled (1) to (6).
 
                   Figure 4.1. Execution Diagram of Proc0
 
+    Assembly code pushes all of the CPU registers (ax, bx, cx, ...)
+
 At (1), it sets running to point at proc0, as shown on the right-hand side of 
 the diagram. If we consider proc0 as the PROC structure of a process, the system
 is now running the process proc0. 
@@ -255,6 +264,8 @@ see this, assume that we have another PROC structure, proc1, which called
 tswitch() and executed the SAVE part of tswitch() before. Then proc1's ksp must 
 point to its stack area, which contains saved CPU registers and a return address
 from where it called tswitch(), as shown in the figure 4.2.
+
+ Capitalized Reg mean they belong to Proc1
 
      Proc1's code space:                            scheduler(): 
      ------------------                                    
@@ -290,7 +301,13 @@ structures, each representing a process. Each PROC has a unique pid number for
 identification and a kstack, which is the execution stack of the process. The 
 PROCs are initialized as follows.
 
-        running -> P0 -> P1 -> P1 -> P2 ->....-> P8->|                
+each process runs in kernel space, but can also switch to user mode
+if program at 0x1000, 0x2000 through 0x8000 (or is it 0x9000?) available for RAM
+9
+
+singularly linked list (circular), P8 points back to P0
+
+        running -> P0 -> P1 -> P2 -> P3 ->....-> P8->|                
                    |                                 |
                    <------------------------------<---
 
@@ -419,10 +436,10 @@ The following lists the C code of the multitasking program.
 
 typedef struct proc{
     struct proc *next;   
-           int  ksp;               /* saved sp; offset = 2 */
+           int  ksp;      // assembly code         /* saved sp; offset = 2 */
            int  pid;
            int  status;            /* READY|DEAD, etc */
-           int  kstack[SSIZE];     // kmode stack of task
+           int  kstack[SSIZE];  // end   // kmode stack of task
 }PROC;
 
 
@@ -453,20 +470,32 @@ int initialize()
   for (i=0; i < NPROC; i++){
     p = &proc[i];
     p->next = &proc[i+1];
-    p->pid = i;
+    p->pid = i; // pid 0,1,2,3,4,...
     p->status = READY;
     
     if (i){     // initialize kstack[ ] of proc[1] to proc[N-1]
       for (j=1; j < 10; j++)
-          p->kstack[SSIZE - j] = 0;          // all saved registers = 0
-      p->kstack[SSIZE-1]=(int)body;          // called tswitch() from body
+          p->kstack[SSIZE - j] = 0;          // all saved registers = 0 (zero everything out)
+      p->kstack[SSIZE-1]=(int)body;          // called tswitch() from body (address of body function pointed at by retPC)
       p->ksp = &(p->kstack[SSIZE-9]);        // ksp -> kstack top
     }
   }
   running = &proc[0];
-  proc[NPROC-1].next = &proc[1];
+  proc[NPROC-1].next = &proc[1]; //last point back to first
   printf("initialization complete\n"); 
 }
+
+// assume every proc has already called tswitch, coming from body
+
+//                  body v
+// each is of the form retPC|ax|bx|...|flag|
+//                                       ^stack pointer
+
+// every procees starts by following retPC back to position in body
+
+// stack, high to low address
+// high end point to body
+// all reg = 0
 
 char *gasp[NPROC]={
      "Oh! You are killing me .......\n",
@@ -502,6 +531,8 @@ int ps()
 
 int body()
 {
+    // bp = stack frame pushed on stack
+    // then c pushed on
    char c;
    while(1){
       ps();
@@ -510,11 +541,14 @@ int body()
        c=getc();
        switch(c){
             case 's': tswitch(); break;
-            case 'q': grave();   break;
+            case 'q': grave();   break; //ignore for a while
             default :            break;  
        }
    }
 }
+
+// putc
+// blo register determines color
 
 main()
 {
