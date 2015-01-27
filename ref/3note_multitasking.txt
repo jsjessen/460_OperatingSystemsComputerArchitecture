@@ -306,6 +306,7 @@ if program at 0x1000, 0x2000 through 0x8000 (or is it 0x9000?) available for RAM
 9
 
 singularly linked list (circular), P8 points back to P0
+pretend P0->p8 have called tswitch() sometime before 
 
         running -> P0 -> P1 -> P2 -> P3 ->....-> P8->|                
                    |                                 |
@@ -336,8 +337,11 @@ entry address of a body() function. What about the "saved" registers? Since the
 PROC never ran before, the register values do not matter, so they can all be 
 initialized to 0. Accordingly, we initialize each of the PROCs, P1 to P8, as 
 shown in Figure 4.4.
+
+creates the illusion that process has called twitch before
+
                                               ----------
-                                              |PROC.ksp| 
+                                              |PROC.ksp| (array size - 9)
                                               -----|----
                   -1  -2  -3  -4  -5  -6  -7  -8  -9   Low Address  
                 --------------------------------------------------
@@ -429,7 +433,7 @@ The following lists the C code of the multitasking program.
 
 /************ t.c file **********************************/
 #define NPROC     9        
-#define SSIZE  1024                /* kstack int size */
+#define SSIZE  1024 //size of proc 1024 * 2 bytes  /* kstack int size */
 
 #define DEAD      0                /* proc status     */
 #define READY     1      
@@ -439,7 +443,7 @@ typedef struct proc{
            int  ksp;      // assembly code         /* saved sp; offset = 2 */
            int  pid;
            int  status;            /* READY|DEAD, etc */
-           int  kstack[SSIZE];  // end   // kmode stack of task
+           int  kstack[SSIZE];  // end  // kmode stack of task, important to keep at end of struct so point to proc + proc_struct_size
 }PROC;
 
 
@@ -534,6 +538,7 @@ int body()
     // bp = stack frame pushed on stack
     // then c pushed on
    char c;
+   printf("proc %d resumes to body() function\n", running->pid);
    while(1){
       ps();
       printf("I am Proc %d in body()\n", running->pid);
@@ -550,6 +555,7 @@ int body()
 // putc
 // blo register determines color
 
+// get udated code from website, think it has been changed
 main()
 {
  printf("Welcome to the 460 Multitasking System\n");
@@ -590,3 +596,10 @@ int scheduler()
    umount /mnt
 
 #  Use YOUR MTX booter of LAB#1 to boot up the new mtx
+
+
+ar d mtxlib setds
+ar t mtxlib
+
+ar d mtxlib setds.o
+ar t mtxlib
