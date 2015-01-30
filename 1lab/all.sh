@@ -1,16 +1,16 @@
 #!/bin/sh
 
 original="mtximage"
-vdisk="my_mtximage"
+mydisk="my_mtximage"
 
 red='\033[0;31m'
+yellow='\033[0;33m'
 green='\033[0;32m'
-gold='\033[0;33m'
 NC='\033[0m' # No Color
 
-echo -n Replacing $vdisk with a fresh copy of the original... 
-rm -f $vdisk
-cp $original $vdisk
+echo -n Replacing $mydisk with a fresh copy of the original... 
+rm -f $mydisk
+cp $original $mydisk
 echo "${green}OK${NC}"
 
 echo -n Compiling assembly code to 16-bit object code...
@@ -54,15 +54,15 @@ else
 fi
 
 echo -n Dumping booter to first block of the virtual floppy disk... 
-if dd if=booter of=$vdisk bs=1024 count=1 conv=notrunc 2> /dev/null; 
+if dd if=booter of=$mydisk bs=1024 count=1 conv=notrunc 2> /dev/null; 
 then
     echo "${green}OK${NC}"
 else
     exit 1
 fi
 
-echo "${gold}Attempting to boot $vdisk on virtual 32-bit QEMU system...${NC}"
-qemu-system-i386 -fda $vdisk -no-fd-bootchk -localtime -serial mon:stdio
+echo "${yellow}Attempting to boot $mydisk on virtual 32-bit QEMU system...${NC}"
+qemu-system-i386 -fda $mydisk -no-fd-bootchk -localtime -serial mon:stdio
 
 #                         Contents of the MTX Disk Image:
 #

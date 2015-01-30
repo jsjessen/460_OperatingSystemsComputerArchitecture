@@ -1,28 +1,34 @@
 // James Jessen
 // 10918967
 
-#include "myprint.h"
+#include "io.h"
+
+// Slim get string, be careful: no max limit
+// Assumes memory for str has been allocated
+void gets(char str[])
+{
+    while((*(str) = getc()) != '\r')
+        putc(*str++); // So user can see what they're typing
+
+    *str = '\0'; // Append with null char
+}
 
 void rpu(u16 n, u16 base)
 {
     static char *table = "0123456789ABCDEF";
-    char c;
 
     if(n)
     {
-        c = table[n % base];
         rpu(n / base, base);
-        putc(c);
+        putc(table[n % base]);
     }
 } 
 
 // String
-void prints(char* s)
+void prints(char* str)
 {
-    char *cp = s;
-
-    while(*cp)
-        putc(*cp++);
+    while(*str)
+        putc(*str++);
 }
 
 // Signed Int
@@ -90,14 +96,13 @@ void myprintf(char *fmt, ...)
     char *cp = fmt;
 
     // each int ptr increment = 4 bytes 
-    // 12 / 4 = 3
-    int *ip = ebp + 3;
+    int *ip = ebp + (12 / 4);
 
     while(*cp)
     {
         if (*cp != '%')
         {
-            // for each \n, spit out an extra \r
+            // for each \n, also \r
             if (putc(*cp) == '\n')
                 putc('\r'); 
         }

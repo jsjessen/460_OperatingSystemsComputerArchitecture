@@ -1,14 +1,9 @@
-/******** myprint.h ********/
-
-/* James Jessen
- * 10918967
- *
- * CptS 360
- * Lab #2
- */
+// James Jessen
+// 10918967
 
 #ifndef __MY_PRINT_H__
 #define __MY_PRINT_H__
+
 
 #define OCT 8
 #define DEC 10
@@ -26,5 +21,6 @@ void printl(u32 n);              // Unsigned Long
 void printo(u16 n);              // OCTAL
 void printx(u16 n);              // HEX
 void myprintf(char *fmt, ...);   // Formatted
+
 
 #endif // __MY_PRINT_H__

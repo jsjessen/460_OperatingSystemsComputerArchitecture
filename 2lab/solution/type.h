@@ -17,10 +17,10 @@ typedef struct proc{
 
     int    status;             // status = FREE|READY|RUNNING|SLEEP|ZOMBIE    
     int    ppid;               // parent pid
-  struct proc *parent;
+    struct proc *parent;
     int    priority;
     int    event;
-  int    exitCode;
+    int    exitCode;
 
     int    kstack[SSIZE];      // per proc stack area
 }PROC;
