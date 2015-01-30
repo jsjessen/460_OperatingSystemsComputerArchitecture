@@ -1,0 +1,267 @@
+            460 Notes #4 Process Management in Unix/Linux
+
+1. Read Linux's man pages on
+        fork, exec, wait, exit,  
+
+    q command (exit)
+
+    process changes status READY -> DEAD
+    now ZOMBIE process
+
+    atoi() can be used (doens't use io)
+    change gets so it returns char* so can do atoi(gets(s))
+
+         exitCode
+    -----------------
+    |       |   n   |
+    -----------------
+
+    if parent dies, make its children have parent P1
+    to find children, loop through procs and check ppids
+        if match, change to 1 for P1
+            if parent is sleeping/waiting, wake parent
+
+    don't let P1 die if there are more than 2 processes running
+
+    process gives up CPU by calling tswitch (only way)
+
+
+    in real linux, find children using family tree (each proc ptr to child/sibling)
+    don't implement for ours, becuase you gain very little
+    only saves time if there are a small number of processes
+
+    JESUS can ZOMBIE -> READY (it's a miracle!)
+
+
+        Kernel
+          ^
+          |
+    pid = wait(&status)  if no children, immediatly returns from Kernel with -1
+                         if children that are alive, sleep on event = parent pid (sleep on own pid)
+                             becuase all children know their parent's pid
+                         if dead child, return right away with pid
+
+    for simplicity, when are using static pid's
+
+    the address of a global variable is unique
+    so can sleep on address
+    your proc address = running
+    any unique valuable agreeable between parent/children works
+
+    when a process dies, it should wake with ppid event
+
+    each wait call only handles 1 child
+    so if you have 3 children, would need to call wait() wait() wait()
+    to wait for them all to die
+
+
+2. Processes:
+   A process is a sequence of executions regarded by the OS kernel as a single 
+   entity for using system resources, such as CPU time, memory space,
+   opened files, I/O devices, etc.  In general, a "resource" is anything that
+   may cause a process to wait.
+
+   When Unix starts, it creates a process P0 by brute-force. P0 uses the Unix
+   Kernel function to "fork" a child process P1, which in turn forks other 
+   processes. From a user's point of view, the most important process is P1.
+
+   Unix's "fork" creates a child process identical to the parent (the caller of
+   fork). The child usually uses exec() to change its execution image to a 
+   different file. So when P1 starts to run, it changes its image to /etc/init.
+   For this reason, P1 is also known as the "init" process.
+
+   While executing /etc/init, P1 reads a default configuration files, e.g.
+   /etc/inittab, to fork a child process on each terminal (or dial-in 
+   line). Then P1 waits for ANY of the children processes to terminate. 
+   
+   When a process terminates, it wakes up the parent. When a "login process" 
+   ends (when user logout), it wakes up P1, which usually "forks" another child 
+   process on that terminal.
+
+   Each terminal process opens 3 FILEs;  stdin, stdout, stderr,  on its own
+   terminal. Then, it changes image to execute "/etc/getty" or "/etc/login", in
+   which it displays a  login:  to its stdout and waits for user to login from
+   its stdin.  When a user login, the terminal process gets the users uid and
+   gid (assigned to the user account in the /etc/passwd file), and becomes the
+   user's process.
+
+   The user's account also specifies which program the user will execute when
+   login, usually sh.  So, the user process changes image to execute sh, which
+   prompts the user for input commands.
+
+   For each input command, sh forks a child to execute the command (file). 
+   Meanwhile, sh waits for the child to terminate. When the child dies, it 
+   wakes up the parent sh, which prompts for another command.
+
+   If the command line contains | or &, sh may fork several children processes,
+   all of which run concurrently.
+
+   If you have taken CS360 from me, you have written a C program that 
+   simulates the Unix sh in a lab assignment. In case you did not or forgot, 
+   please do the following.
+   ***********************************************************************
+       Use  man  to read the man pages of  fork, exec, exit and wait 
+   ***********************************************************************
+3. Process Management in UNIX:
+     pid = fork()      : creates a child process
+           exec()      : change process image
+           exit(value) : terminate with a CODE=value
+     pid = wait(int *) : wait for a child to terminate, return its pid and
+                         exit status
+==============================================================================
+
+4. Process Synchronization in Unix Kernel
+
+   The Unix kernel uses 
+                         sleep(int event);  // event = reason you are going to sleep (event field in PROC struct)
+   and                  wakeup(int event);  // wakeup all proc with matching event and sleeping
+                                            // wakeup everyone, not just first -> free economy, not communist
+                                            don't give up CPU just put them in readyQueue, proc that woke them up is still running
+                                            doesn't let them run, just makes them eligable to run
+   for process synchronization.
+
+    when asleep not READY -> not in ready queue
+
+
+(1). When a process must wait for something (called an event in Unix kernel)
+     it calls
+               sleep(event);
+     to go to sleep, waiting for the event to occur. 
+
+     In sleep(), it records the event value in its PROC structure, changes its 
+     status to SLEEP, and gives up CPU. A sleeping process will not run until 
+     it is woken up by another process or an interrupt handler through 
+     wakeup(event).
+
+(2). An event is anything a process may sleep on, as long as another process 
+     will issue a wakeup(event) on that event value. In the Unix kernel, events
+     are usually (global) variable addresses in the Unix Kernel, whcih are 
+     unique, so that processes may "sleep" on distinct event values, and 
+     wakeup(event) only wakes up those processes that are sleeping on the
+     specified event value.
+
+     Examples: 
+       wait for child process termination ==> sleep on its own &proc.
+       wait for an i/o buffer ===> sleep on that i/o buffer address.
+
+(3). Many processes may sleep for the same event. (which is natural).
+
+(4). When an event occurs, someone (a process or an interrupt handler) will
+     call wakeup(event), which wakes up ALL processes sleeping on that event.
+     If no process is sleeping on the event, wakeup() has no effect, i.e. 
+     same as a NOP (No Operation).
+
+NOTE: There is no record whether an event has occurred or not. In order NOT 
+      to miss the wakeup(event) call, a process must go to sleep() BEFORE 
+      the awaited event occurs. In a uniprocessor (Single CPU) system, this
+      is always achievable. However, in a Multiprocessor (multi-CPU) system,
+      this (sleep first and wakeup later) condition cannot be guaranteed since
+      processes can run in "parallel" in real-time. So, sleep/wakeup works
+      only for Uniprocessor systems. For multiprocessor systems, we need 
+      to use other process synchronization mechanisms, e.g. semaphores, which 
+      will be discussed later. 
+
+==============================================================================
+(4). Unix kernel assigns a fixed priority to a process when it goes to sleep.
+     The priority, which will be the process' scheduling priority when it
+     wakeup, is determined by the importance of the "resouces".  Thus, a 
+     newly awakened process may have a very high prioirty
+    
+(5). The assigned priority also classifies a sleeping process as
+         SOUND sleepers : those who will not be awakened by "signals"
+         LIGHT sleepers : those who will be awakened by signals.
+
+     Examples:
+         sleep() for disk I/O completion (interrupt) :   SOUND.
+         sleep() for KBD inputs from user            :   LIGHT.
+==============================================================================
+
+5. Process Management in MTX
+   We shall implement the following operations for process management in MTX:
+     
+(1). kfork: 
+     PROC *kfork() creates a child proc and returns the child PROC pointer.
+     The child PROC is READY (in readyQueue) to run. When sechduled to run, it
+     RESUMES to the body() function.
+
+     LATER, we shall implement a  pid=fork() operation IDENTICAL TO fork() 
+     in UNIX.
+        
+(2). Process Termination or DIE:
+
+     A process is born in kerenl. It must DIE in kernel.  
+
+     ADD TWO more fields to the PROC structure:
+         int event;        // for proc to sleep on a value
+         int exitValue;    // proc's exit value in LOW byte = 0-255
+       
+     When a proc sees 'q' command, ask for an exit value:
+          enter an exitValue:
+          write YOUR gets(char s[ ]) function to return s;
+          int exitValue = atoi(gets(s[8]);
+     Then, call kexit(exitValue) to DIE:
+
+                Algorithm of kexit(value):
+       Record value in its PROC.exitValue;
+       Give away children (dead or alive) to P1. 
+       Make sure P1 does not die if other procs still exist.
+       Issue wakeup(parent) to wake up its parent;
+             Wake up P1 also if it has sent any children to P1;
+       Mark itself a ZOMBIE;
+       Call tswitch(); to give up CPU;
+     
+     When a proc dies, its PROC is marked as ZOMBIE, contains an exit value, but
+     the PROC is NOT yet freed. It will be freed by the parent via the wait() 
+     operation.
+
+(3). Wait for a child proc to die:
+
+     A proc calls  pid = wait(int *status);  to wait for a (ANY) child to die, 
+     where pid is the dead child's pid and status is the child's exitValue.
+
+           int wait(int *status)
+           {
+              if (no child)
+                 return -1 for ERROR;
+              while(1){
+                 if (found a ZOMBIE child){
+                    copy child's exitValue to *status; save its pid;
+                    free the ZOMBIE child PROC (enter it into freeList);
+                    return dead child's pid;
+                 }
+                 sleep(running);    // sleep at its own &PROC
+              }
+            }
+
+(4). sleep(event)/wakeup(event)
+
+     A proc call sleep(event) to sleep on an event:
+
+       sleep(int event)
+       {
+          running->event = event;      //Record event in PROC
+          running->status = SLEEP;     // mark itself SLEEP
+// For fairness, put running into a FIFO sleepList so that they will wakeup in order
+// not strictly neccesary for functionality
+          tswitch();                   // not in readyQueue anymore
+       } 
+
+
+When a SLEEP process calls tswitch(), which calls scheduler(), which does NOT
+put any non-READY proc into readyQueue, it is therefore NOT runnable until it
+is woken up by anohter process. 
+
+
+     A proc calls wakeup(event) to wake up ALL procs sleeping on event value:
+
+       wakeup(int event)
+       {
+          for every PROC do{
+              if (PROC.status==SLEEP && PROC.event==event){
+                 // remove p from sleepList if you implement a sleepList
+                  p->status = READY;       // make it READY
+                 enqueue(&readyQueue, p)   // enter p into readyQueue (by pri)
+              }
+          }
+       }
+=============================================================================
