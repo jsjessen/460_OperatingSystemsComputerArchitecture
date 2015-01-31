@@ -3,14 +3,15 @@
 
 #include "io.h"
 
-// Slim get string, be careful: no max limit
+
 // Assumes memory for str has been allocated
-void gets(char str[])
+char* gets(char str[])
 {
     while((*(str) = getc()) != '\r')
         putc(*str++); // So user can see what they're typing
 
     *str = '\0'; // Append with null char
+    return str;
 }
 
 void rpu(u16 n, u16 base)

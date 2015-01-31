@@ -13,6 +13,16 @@ typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned long  u32;
 
+// Imported from ts.s 
+char getc(void);
+char putc(char c);
+void* get_ebp(void);
+void* get_esp(void);
+
+// Input
+char* gets(char str[]);
+
+// Output
 void rpu(u16 n, u16 base);
 void prints(char *s);            // String
 void printd(int n);              // Signed Int

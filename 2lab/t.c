@@ -1,20 +1,21 @@
-/************ t.c file **********************************/
-#define NPROC     9        
-#define SSIZE  1024                /* kstack int size */
+#include "io.h"
 
-#define DEAD      0                /* proc status     */
+#define NPROC     9        
+#define SSIZE  1024                // kstack int size
+
+#define DEAD      0                // proc status   
 #define READY     1      
 
 typedef struct proc{
     struct proc *next;   
-    int  ksp;               /* saved sp; offset = 2 */
+    int  ksp;               // saved sp; offset = 2 
     int  pid;
-    int  status;            /* READY|DEAD, etc */
+    int  status;            // READY|DEAD, etc
     int  kstack[SSIZE];     // kmode stack of task
 }PROC;
 
 
-// #include "io.c" /**** USE YOUR OWN io.c with YOUR printf() here *****/
+// #include "io.c" // USE YOUR OWN io.c with YOUR printf() here
 
 //PROC proc[NPROC], *running, *freeList, *readyQueue, *sleepList;
 //int procSize = sizeof(PROC);
@@ -27,16 +28,16 @@ int color;
 
 int  procSize = sizeof(PROC);
 
-/****************************************************************
-  Initialize the proc's as shown:
-
-  running->proc[0]--> proc[1] --> proc[2] ... --> proc[NPROC-1] -->
-  ^                                         |
-  |<---------------------------------------<------------
-
-  Each proc's kstack contains:
-  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
- *****************************************************************/
+// ****************************************************************
+//  Initialize the proc's as shown:
+//
+//  running->proc[0]--> proc[1] --> proc[2] ... --> proc[NPROC-1] -->
+//  ^                                         |
+//  |<---------------------------------------<------------
+//
+//  Each proc's kstack contains:
+//  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
+ // *****************************************************************
 
 int body();  
 
