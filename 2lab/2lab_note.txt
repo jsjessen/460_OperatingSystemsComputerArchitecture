@@ -1,5 +1,24 @@
 Download the files from ~samples/LAB2/ directory:
 
+P0 forks P1
+readyQ = P1 -> NULL
+P0 running
+P0 switch
+P1 resumes to body()
+-------------------------------
+freeList = 2->3->4->5->6->7->8->NULL
+readQ = 0 -> NULL
+-------------------------------
+
+fork: Moves first process in freeList to readyQ
+
+switch: First process in readyQ becomes running process
+        Previous running process get put into readyQ 
+
+kexit: Process removed from all lists
+       Switch()
+
+
     q, mk, t.c, s.s, mylib, mtximage, lab2.sample
 
 Look at the mk script. Run mk to generate a bootable image in /boot of mtximage.

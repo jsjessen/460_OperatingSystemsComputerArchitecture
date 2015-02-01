@@ -4,7 +4,7 @@ vm="qemu-system-i386"
 kc_image="mtximage"
 my_image="my_mtximage"
 booter="booter"
-lib="mtxlib"
+lib="mylib.a"
 os="my_mtx"
 
 red='\033[1;31m'
@@ -42,15 +42,14 @@ gold_echo "Compiling assembly code into 16-bit object code..."
 try "as86 -o ts.o ts.s"
 
 gold_echo "Compiling C code into 16-bit object code..."
-try "bcc -o ${os}.o -c -ansi t.c"
+try "bcc -o ${os}.o -c -ansi main.c"
 
 gold_echo "Linking object code into a one-segment binary executable image..."
-try "ld86 -o $os -d ts.o ${os}.o $lib /usr/lib/bcc/libc.a" #2> /dev/null; 
-#try "ld86 -o $os -d ts.o ${os}.o /usr/lib/bcc/libc.a" #2> /dev/null; 
+echo
+try "ld86 -o $os -d ts.o ${os}.o /usr/lib/bcc/libc.a"
 
 gold_echo "Dumping $booter to first block of ${my_image}..."
-echo "dd if=$booter of=$my_image bs=1024 count=1 conv=notrunc" # 2> /dev/null" 
-try "dd if=$booter of=$my_image bs=1024 count=1 conv=notrunc" # 2> /dev/null" 
+try "dd if=$booter of=$my_image bs=1024 count=1 conv=notrunc 2> /dev/null" 
 
 gold_echo "Copying $os to $my_image/boot/${os}..."
 try "sudo mount -o loop $my_image /mnt" \

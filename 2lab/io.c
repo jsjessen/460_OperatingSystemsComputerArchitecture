@@ -3,7 +3,6 @@
 
 #include "io.h"
 
-
 // Assumes memory for str has been allocated
 char* gets(char str[])
 {
@@ -12,6 +11,44 @@ char* gets(char str[])
 
     *str = '\0'; // Append with null char
     return str;
+}
+
+int pow(int base, int power)
+{
+    int i;
+    int result = base;
+
+    if(base < 0 || power < 0)
+        return 0;
+
+    if(power == 0)
+        return 1;
+
+    for(i = 0; i < power; i++)
+        result *= base;
+
+    return result;
+}
+
+int geti()
+{
+    char str[32];
+    int result = 0;
+    int i = 0, j = 0;
+
+    gets(str);
+    while(str[i+1]) { i++; }
+
+    // 537
+    // str[0] = 5 * (10^2)
+    // str[1] = 3 * (10^1)
+    // str[2] = 7 * (10^0)
+    for(j = i; j > 0; j--) 
+    {
+        result += (str[i-j] - '0') * pow(DEC, j);
+        j++;
+    }
+    return result;
 }
 
 void rpu(u16 n, u16 base)
@@ -88,7 +125,7 @@ void printx(u16 n)
 }
 
 // Formatted Printing
-void myprintf(char *fmt, ...)
+void printf(char *fmt, ...)
 {
     //                12    8      4      0
     // ... d | c | b | a | fmt | retPC | ebp | locals ...
