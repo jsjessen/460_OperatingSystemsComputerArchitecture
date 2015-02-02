@@ -1,0 +1,89 @@
+                      LAB Assignment #3
+                      DUE: in one week
+
+      IMPLEMENT exit, sleep, wakeup, wait functions in the MTX kernel.
+
+1. Download files from samples/LAB3:
+       mtximage, mk, q, ts.s  t.c
+
+2. Run QEMU on mtximage, which is a SOULTION to LAB#3
+
+3. The t.c file needs YOUR C code. LOOK AT THE body() function's commands:
+
+           [s|f|q| p|z|a|  w ] 
+
+   where q : for the running PROC to die;
+         p : print pid, ppid and status of ALL PROCs
+         z : running PROC to sleep on an event value
+         a : wakeup ALL PROCs sleeping on event
+         w : to wait for a ZOMBIE child
+
+
+4. Write YOUR C code (per NOTES #4) for 
+     
+     int ksleep(int event);
+     int kwakeup(int event);
+
+     int kexit(int exitvalue);
+     int kwait(int *status);
+   
+   Writing wrapper functions because we are testing
+   Eventually the actual functions will be called from user mode
+5. for each command:
+       q: do_exit(){
+             ask for an exitValue (value), e.g. 12
+             kexit(exitValue);
+          }
+       z: do_sleep(){
+             ask for an event (value), e.g. 123; 
+             ksleep(event);
+          }
+       a: do_wakeup(){
+             ask for an event (value);
+             kwakeup(event);
+          }
+       w: do_wait(){
+             int pid, status;
+             int pid = kwait(&status);
+             print pid and status;
+          }
+       p: do_ps(){
+             write C code to print ALL PROC's pid, ppid, status;
+          }
+
+6. Make YOUR t.c file work as in the SOLUTION.
+==========================================================================
+
+                       ADDITIONAL INFO
+
+6. How to create and use link library: In Unix/Linux, ARchive files and be used
+   by linker. ARchive files can be manipulated by the ar utility command.
+
+(1).   Assume: getc.s file:
+
+        .globl _getc
+_getc:
+        xorb   ah,ah           ! clear ah
+        int    0x16            ! call BIOS to get a char in AX
+        ret 
+
+(2).  as86 -o getc.o getc.s ===> generate getc.o 
+
+(3).  ar r mylib getc.o    <=== create mylib and REPLACE getc.o in it.
+
+(4).  ar t mylib           <=== show contents of mylib
+----------------------------------------------------------------------
+
+(5). Assume io.c is a C file containing many functions, e.g. gets(), printf()
+
+        bcc -c -ansi io.c  ==> generate io.o file
+
+(6).    ar r mylib io.o   <=== add io.o to mylib
+
+
+(7). Write YOUR own io.c, queue.c, etc.
+     Add their .o files to mylib
+     Use mylib for the lad86 linker to use.
+==========================================================================
+
+
