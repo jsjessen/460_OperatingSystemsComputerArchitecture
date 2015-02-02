@@ -10,7 +10,6 @@ void enqueue(PROC** queue, PROC* new)
     // If empty queue, create first element
     if(!p)
     {
-        printf("Q FIRST ELEMENT p = %d\n", p->pid); 
         *queue = new;
         new->next = NULL;
         return;

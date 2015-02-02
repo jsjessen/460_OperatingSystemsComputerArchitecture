@@ -4,6 +4,7 @@
 #ifndef __IO_H__
 #define __IO_H__
 
+#include <stdarg.h>
 
 #define OCT 8
 #define DEC 10

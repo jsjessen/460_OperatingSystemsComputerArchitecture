@@ -61,7 +61,7 @@ gold_echo "Compiling C code into 16-bit object code..."
 try "bcc -o ${os}.o -c -ansi main.c"
 
 gold_echo "Linking object code into a one-segment binary executable image..."
-try "ld86 -o $os -d ts.o ${os}.o kclib /usr/lib/bcc/libc.a"
+try "ld86 -o $os -d ts.o ${os}.o $lib /usr/lib/bcc/libc.a"
 
 gold_echo "Dumping $booter to first block of ${my_image}..."
 try "dd if=$booter of=$my_image bs=1024 count=1 conv=notrunc" # 2> /dev/null" 

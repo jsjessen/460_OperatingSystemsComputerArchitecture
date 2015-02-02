@@ -20,41 +20,42 @@ void do_exit(void);
 void printQueue(char* name, PROC* queue);
 void printList(char* name, PROC* list);
 
-u16 pow(u16 base, u16 power)
-{
-    u16 i;
-    u16 result;
+//u16 pow(u16 base, u16 power)
+//{
+//    u16 i;
+//    u16 result;
+//
+//    result = base;
+//
+//    if(base < 0 || power < 0)
+//        return 0;
+//
+//    if(power == 0)
+//        return 1;
+//
+//    for(i = 1; i < power; i++)
+//        result *= base;
+//
+//    return result;
+//}
+//
+//u16 geti()
+//{
+//    char str[32];
+//    u16 result = 0;
+//    u16 len = 0;
+//    u16 i;
+//
+//    gets(str);
+//    while(str[len])  
+//        len++; 
+//
+//    for(i = len; i > 0; i--) 
+//        result += (str[len - i] - '0') * pow(DEC, i - 1);
+//
+//    return result;
+//}
 
-    result = base;
-
-    if(base < 0 || power < 0)
-        return 0;
-
-    if(power == 0)
-        return 1;
-
-    for(i = 1; i < power; i++)
-        result *= base;
-
-    return result;
-}
-
-u16 geti()
-{
-    char str[32];
-    u16 result = 0;
-    u16 len = 0;
-    u16 i;
-
-    gets(str);
-    while(str[len])  
-        len++; 
-
-    for(i = len; i > 0; i--) 
-        result += (str[len - i] - '0') * pow(DEC, i - 1);
-
-    return result;
-}
 void initialize()
 {
     int i;
@@ -92,11 +93,11 @@ int body()
     while(true)
     {
         printf("-----------------------------------------------------------------------\n");
-        printList ("freeList  ", freeList);
-        printQueue("readyQueue", readyQueue);
-        printf("-----------------------------------------------------------------------\n\n");
+        printList (" freeList  ", freeList);
+        printQueue(" readyQueue", readyQueue);
+        printf("-----------------------------------------------------------------------\n");
 
-        printf("P%d running: priority=%d parent=%d enter a char [s|q|f] : ",
+        printf("\nP%d running: priority=%d parent=%d enter a char [s|q|f] : ",
                 running->pid, running->priority, running->parent->pid );
 
         c = getc(); 
@@ -126,8 +127,9 @@ int main()
     {
         if(readyQueue)
         {
-            printf("P0 switch process\n");
+            printf("P0 switch process\n\n");
             tswitch();   // P0 switch to run P1
+            printf("P%d running\n", running->pid);
         }
     }
 }
@@ -181,7 +183,7 @@ void scheduler()
 
 int do_tswitch()
 {
-    printf("P%d tswitch()\n", running->pid);
+    printf("P%d tswitch()\n\n", running->pid);
     tswitch();
     printf("P%d resumes\n", running->pid);
 
@@ -196,7 +198,7 @@ void do_kfork()
 
 void kexit(u16 exitValue)
 {
-    printf("\nP%d stopped: Exit Value = %d\n", running->pid, exitValue);
+    printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
     running->exitCode = exitValue;
     running->status = ZOMBIE;
     tswitch();

@@ -122,98 +122,80 @@ void printx(u16 n)
         rpu(n, HEX);
 }
 
-u16 count_spec(char* str)
-{
-    u16 count;
-
-    count = 0;
-    while(*str)
-    {
-        if(*str == '%')
-        {
-            str++;
-            switch(*str) // *str = char after %
-            {
-                case 'c': // char
-                case 's': // string
-                case 'd': // signed int 
-                case 'u': // unsigned short 
-                case 'l': // unsigned long 
-                case 'o': // OCTAL 
-                case 'x': // HEX
-                    count++;
-                default: // unknown specifier
-                    break;
-            }
-        }
-        str++;
-    } 
-    return count;
-}
+//u16 count_spec(char* str)
+//{
+//    u16 count;
+//
+//    count = 0;
+//    while(*str)
+//    {
+//        if(*str == '%')
+//        {
+//            str++;
+//            switch(*str) // *str = char after %
+//            {
+//                case 'c': // char
+//                case 's': // string
+//                case 'd': // signed int 
+//                case 'u': // unsigned short 
+//                case 'l': // unsigned long 
+//                case 'o': // OCTAL 
+//                case 'x': // HEX
+//                    count++;
+//                default: // unknown specifier
+//                    break;
+//            }
+//        }
+//        str++;
+//    } 
+//    return count;
+//}
 
 // Formatted Printing
 void printf(char *fmt, ...)
 {
-    u16* ebp;
-    char* cp;
-    u16* ip;
-    int i;
+    va_list args;
+    va_start(args, fmt); // Initialize the argument list
 
-    //             8   6    4      2      0
-    // ... a | b | c | d | fmt | retPC | ebp | locals ...
-    ebp = get_ebp();
-    ip = (ebp - (6 / 2)) - count_spec(fmt);
-    //putc('\n');
-    putc('*');
-    //for(i = 0; i < 8; i++)
-    //{
-    //    prints(" - ");
-    //    printu(*ip++);
-    //}
-    //ip--; // Fixes debug in Init
-    //ip++; // Fixes debug in Main, somewhere the stack frame is off by 2 bytes
-    // None fixes list/queue printing 
-
-    cp = fmt;
-    while(*cp)
+    while(*fmt != '\0')
     {
-        if (*cp != '%')
+        if(*fmt != '%')
         {
-            // for each \n, also \r
-            if (putc(*cp) == '\n')
+            // for each \n, spit out an extra \r
+            if(putc(*fmt) == '\n')
                 putc('\r'); 
         }
         else
         {
-            cp++; // bypass %
-            switch (*cp) // *cp = char after %
+            fmt++; // bypass %
+            switch(*fmt) // *fmt = char after %
             {
                 case 'c': // char
-                    putc(*ip++);
+                    putc(va_arg(args, int)); //compiler said use int
                     break;
 
                 case 's': // string
-                    prints((char*)(*ip++));
+                    prints(va_arg(args, char*));
                     break;
 
-                case 'd': // signed int 
-                    printd(*ip++);
+                case 'd': // int
+                    printd(va_arg(args, int));
                     break;
 
-                case 'u': // unsigned short 
-                    printu(*ip++);
+                case 'u': // unsigned int
+                    printu(va_arg(args, u32));
                     break;
 
-                case 'l': // unsigned long 
-                    printl(*ip++);
+                case 'l': // unsigned int
+                    printl(va_arg(args, u32));
                     break;
 
                 case 'o': // OCTAL 
-                    printo(*ip++);
+                    printo(va_arg(args, u32));
                     break;
 
                 case 'x': // HEX
-                    printx(*ip++);
+                    printx(va_arg(args, u32));
                     break;
 
                 case '%': // %% -> %
@@ -222,12 +204,90 @@ void printf(char *fmt, ...)
 
                 default: // unknown specifier
                     putc('%');
-                    putc(*cp);
+                    putc(*fmt);
                     break;
-            }// switch(*cp)
+
+            }// switch(*fmt)
         }// if(%)
 
-        cp++;
+        fmt++;
 
-    } // while(*cp)
+    } // while(fmt)
 } // myprintf()
+//    u16* ebp;
+//    char* cp;
+//    u16* ip;
+//    int i;
+//
+//    //             8   6    4      2      0
+//    // ... a | b | c | d | fmt | retPC | ebp | locals ...
+//    ebp = get_ebp();
+//    ip = (ebp - (6 / 2)) - count_spec(fmt);
+//    //putc('\n');
+//    putc('*');
+//    //for(i = 0; i < 8; i++)
+//    //{
+//    //    prints(" - ");
+//    //    printu(*ip++);
+//    //}
+//    //ip--; // Fixes debug in Init
+//    //ip++; // Fixes debug in Main, somewhere the stack frame is off by 2 bytes
+//    // None fixes list/queue printing 
+//
+//    cp = fmt;
+//    while(*cp)
+//    {
+//        if (*cp != '%')
+//        {
+//            // for each \n, also \r
+//            if (putc(*cp) == '\n')
+//                putc('\r'); 
+//        }
+//        else
+//        {
+//            cp++; // bypass %
+//            switch (*cp) // *cp = char after %
+//            {
+//                case 'c': // char
+//                    putc(*ip++);
+//                    break;
+//
+//                case 's': // string
+//                    prints((char*)(*ip++));
+//                    break;
+//
+//                case 'd': // signed int 
+//                    printd(*ip++);
+//                    break;
+//
+//                case 'u': // unsigned short 
+//                    printu(*ip++);
+//                    break;
+//
+//                case 'l': // unsigned long 
+//                    printl(*ip++);
+//                    break;
+//
+//                case 'o': // OCTAL 
+//                    printo(*ip++);
+//                    break;
+//
+//                case 'x': // HEX
+//                    printx(*ip++);
+//                    break;
+//
+//                case '%': // %% -> %
+//                    putc('%');
+//                    break;
+//
+//                default: // unknown specifier
+//                    putc('%');
+//                    putc(*cp);
+//                    break;
+//            }// switch(*cp)
+//        }// if(%)
+//
+//        cp++;
+//
+//    } // while(*cp)
+//} // myprintf()
