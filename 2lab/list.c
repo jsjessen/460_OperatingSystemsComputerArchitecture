@@ -28,10 +28,8 @@ PROC* delist(PROC** list)
 
     // If empty list, cannot get process
     if(!(*list))
-    {
-        printf("No more free processes\n");
         return NULL;
-    }
+
     *list = (*list)->next;
 
     p->next = NULL;
@@ -44,11 +42,11 @@ void printList(char* name, PROC* list)
     PROC* p = list;
 
     printf("%s = ", name);
-    while(p->next) 
+    while(p) 
     {
         // [PID, Priority]
-        printf("[%d, %d] --> ", p->pid, p->priority);
+        printf("[%d, %d]->", p->pid, p->priority);
         p = p->next;
     }
-    printf("NULL");
+    printf("0\n");
 }

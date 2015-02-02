@@ -13,10 +13,12 @@ char* gets(char str[])
     return str;
 }
 
-int pow(int base, int power)
+u16 pow(u16 base, u16 power)
 {
-    int i;
-    int result = base;
+    u16 i;
+    u16 result;
+
+    result = base;
 
     if(base < 0 || power < 0)
         return 0;
@@ -24,30 +26,26 @@ int pow(int base, int power)
     if(power == 0)
         return 1;
 
-    for(i = 0; i < power; i++)
+    for(i = 1; i < power; i++)
         result *= base;
 
     return result;
 }
 
-int geti()
+u16 geti()
 {
     char str[32];
-    int result = 0;
-    int i = 0, j = 0;
+    u16 result = 0;
+    u16 len = 0;
+    u16 i;
 
     gets(str);
-    while(str[i+1]) { i++; }
+    while(str[len])  
+        len++; 
 
-    // 537
-    // str[0] = 5 * (10^2)
-    // str[1] = 3 * (10^1)
-    // str[2] = 7 * (10^0)
-    for(j = i; j > 0; j--) 
-    {
-        result += (str[i-j] - '0') * pow(DEC, j);
-        j++;
-    }
+    for(i = len; i > 0; i--) 
+        result += (str[len - i] - '0') * pow(DEC, i - 1);
+
     return result;
 }
 
@@ -93,7 +91,7 @@ void printu(u16 n)
 }
 
 // Unsigned Long
-void printl(u32 n)
+void printl(u16 n)
 {
     if(n == 0)
         putc('0');
@@ -124,18 +122,59 @@ void printx(u16 n)
         rpu(n, HEX);
 }
 
+u16 count_spec(char* str)
+{
+    u16 count;
+
+    count = 0;
+    while(*str)
+    {
+        if(*str == '%')
+        {
+            str++;
+            switch(*str) // *str = char after %
+            {
+                case 'c': // char
+                case 's': // string
+                case 'd': // signed int 
+                case 'u': // unsigned short 
+                case 'l': // unsigned long 
+                case 'o': // OCTAL 
+                case 'x': // HEX
+                    count++;
+                default: // unknown specifier
+                    break;
+            }
+        }
+        str++;
+    } 
+    return count;
+}
+
 // Formatted Printing
 void printf(char *fmt, ...)
 {
-    //                12    8      4      0
-    // ... d | c | b | a | fmt | retPC | ebp | locals ...
+    u16* ebp;
+    char* cp;
+    u16* ip;
+    int i;
 
-    int *ebp = (int*)get_ebp();
-    char *cp = fmt;
+    //             8   6    4      2      0
+    // ... a | b | c | d | fmt | retPC | ebp | locals ...
+    ebp = get_ebp();
+    ip = (ebp - (6 / 2)) - count_spec(fmt);
+    //putc('\n');
+    putc('*');
+    //for(i = 0; i < 8; i++)
+    //{
+    //    prints(" - ");
+    //    printu(*ip++);
+    //}
+    //ip--; // Fixes debug in Init
+    //ip++; // Fixes debug in Main, somewhere the stack frame is off by 2 bytes
+    // None fixes list/queue printing 
 
-    // each int ptr increment = 4 bytes 
-    int *ip = ebp + (12 / 4);
-
+    cp = fmt;
     while(*cp)
     {
         if (*cp != '%')

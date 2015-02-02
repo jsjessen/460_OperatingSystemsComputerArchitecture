@@ -98,7 +98,7 @@ _getc:
        ret 
 
        !----------------------------------------------
-       ! void putc(char c)  function: print a char
+       ! char putc(char c)  function: print a char
        !----------------------------------------------
 _putc:           
        push  bp

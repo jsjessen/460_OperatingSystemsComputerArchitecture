@@ -10,8 +10,10 @@ int init()
 {
   // YOUR C code to initialize freeList and readyQueue
   // YOUR C code to create P0 as running
+    return 0;
 } 
 
+PROC *kfork(void);
             
 main()
 {
@@ -30,11 +32,12 @@ main()
 
 int scheduler()
 {
-  if (running->status == READY)
-      enqueue(&readyQueue, running);
+//  if (running->status == READY)
+      //enqueue(&readyQueue, running);
   
-  running = dequeue(&readyQueue);
-  color = 0x000A + (running->pid % 6);
+  //running = dequeue(&readyQueue);
+  //color = 0x000A + (running->pid % 6);
+  return 0;
 }
 
 int body();
@@ -43,12 +46,13 @@ PROC *kfork()
 {
   // YOUR C code to create a CHILD of priority=1, ready to run from body() and
   // enter it into readyQueue by priority.
-  return p;       // return child's PROC pointer
+  return 0;       // return child's PROC pointer
 }         
 
 int geti()
 {
    // YOUR C code to return an integer, e.g. 123
+    return 0;
 }
 
 int do_tswitch()
@@ -56,6 +60,7 @@ int do_tswitch()
   printf("proc %d tswitch()\n", running->pid);
   tswitch();
   printf("proc %d resumes\n", running->pid);
+  return 0;
 }
 
 int do_kfork()
@@ -67,6 +72,7 @@ int do_kfork()
      printf("kfork failed\n");
   else
      printf("child pid = %d\n", p->pid);
+  return 0;
 }
 
 int do_exit()
@@ -76,6 +82,7 @@ int do_exit()
   printf("enter a value: ");
   exitValue = geti();
   kexit(exitValue);
+  return 0;
 }
 
 int body()
@@ -85,8 +92,8 @@ int body()
 
   while(1){
     printf("-----------------------------------------\n");
-    printList("freelist  ", freeList);
-    printQ("readyQueue", readyQueue);
+    //printList("freelist  ", freeList);
+    //printQ("readyQueue", readyQueue);
     printf("-----------------------------------------\n");
 
    printf("proc %d running: priority=%d parent=%d enter a char [s|q|f] : ",
@@ -98,6 +105,7 @@ int body()
        case 'q' : do_exit();    break;
     }
   }
+  return 0;
 }
 
 int kexit(int exitValue)
@@ -106,4 +114,5 @@ int kexit(int exitValue)
     running->exitCode = exitValue;
     running->status = ZOMBIE;
     tswitch();
+    return 0;
 } 

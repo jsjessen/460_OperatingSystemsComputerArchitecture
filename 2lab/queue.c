@@ -8,18 +8,27 @@ void enqueue(PROC** queue, PROC* new)
     PROC* p = *queue;
 
     // If empty queue, create first element
-    if(!(*queue))
+    if(!p)
     {
+        printf("Q FIRST ELEMENT p = %d\n", p->pid); 
         *queue = new;
         new->next = NULL;
         return;
     }
 
+    if(p->priority < new->priority)
+    {
+        // Insert at head
+       *queue = new;
+       new->next = p;
+       return;
+    }
+
     // Go to insertion point
-    while(p->next && (p->next->priority >= new->priority))
+    while((new->priority <= p->next->priority) && p->next )
         p = p->next;
 
-    // Insert
+    // Insert after p
     new->next = p->next;
     p->next = new;
 }
@@ -46,11 +55,11 @@ void printQueue(char* name, PROC* queue)
     PROC* p = queue;
 
     printf("%s = ", name);
-    while(p->next) 
+    while(p) 
     {
         // [PID, Priority]
-        printf("[%d, %d] --> ", p->pid, p->priority);
+        printf("[%d, %d]->", p->pid, p->priority);
         p = p->next;
     }
-    printf("NULL");
+    printf("0\n");
 }

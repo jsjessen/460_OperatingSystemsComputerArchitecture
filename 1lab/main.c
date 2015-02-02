@@ -71,7 +71,8 @@ int main()
     GD    *gp;
     INODE *ip;
     u16 i, ino;
-    char os_name[MAX_NAME_LENGTH];
+    //char os_name[MAX_NAME_LENGTH] = "my_mtx";
+    char* os_name = "my_mtx";
 
     // Get group descriptor
     get_block((u16)GROUP_DESCRIPTOR_BLOCK, buf1);
@@ -84,13 +85,14 @@ int main()
     ip = get_inode(ROOT_INODE);
 
     // Search root inode for "boot"
-    ino = search(ip, "boot"); // = 13
-    ip = get_inode(ino); 
+    //ino = search(ip, "boot"); // = 13
+    //ip = get_inode(ino); 
+    ip = get_inode(13);
 
     // Prompt for filename to boot, e.g. mtx or image, etc. 
     // You may assume that all bootable files are in the /boot directory.
-    prints("Boot: "); 
-    gets(os_name);
+    //prints("Boot: "); 
+    //gets(os_name); LAB2
 
     // Find the file
     ino = search(ip, os_name); // = 34
@@ -100,7 +102,10 @@ int main()
     // ------------------------------------------------------------
 
     // IMPORTANT get indirect block BEFORE moving ES
-    get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], buf2);
+    if((u16)ip->i_block[NUM_DIRECT_BLOCKS] != EMPTY)
+        get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], buf2);
+    else
+        ((u16*)buf2)[0] = EMPTY;
 
     // ES now points at segment 0x1000
     setes(START_SEGMENT);   
@@ -129,6 +134,7 @@ int main()
     // MTX kernel has at most 64 (1KB) blocks, so no double-indirect blocks.
 
     // Return to bs.s and jump to (0x1000, 0) to start up MTX
+    //prints("\n\n\rStarting..."); getc();
     return 0;
 }  
 
@@ -155,19 +161,19 @@ void get_block(u16 bno, u8 buf[])
 {
     u16 c,h,s;
 
-// File system uses LINEAR disk block numbers = 0,1,2,.... etc.
-// BIOS INT13 only accepts parameters in CHS format. 
-// 
-// The PHYSICAL layout of a floppy disk is as follows, where
-// cyl, head, sector all count from 0.
-// 
-//        ----------------------------------------------------------------------
-// linear |s0 s1 .... s17 | s18  .... s35 | s36 .....   s53|s54         s71| ...
-//        ----------------------------------------------------------------------
-// sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
-// head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| ... 
-// cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ...
-// Convert linear block number to CHS format
+    // File system uses LINEAR disk block numbers = 0,1,2,.... etc.
+    // BIOS INT13 only accepts parameters in CHS format. 
+    // 
+    // The PHYSICAL layout of a floppy disk is as follows, where
+    // cyl, head, sector all count from 0.
+    // 
+    //        ----------------------------------------------------------------------
+    // linear |s0 s1 .... s17 | s18  .... s35 | s36 .....   s53|s54         s71| ...
+    //        ----------------------------------------------------------------------
+    // sector | 0 ---------17 |   0 ------ 17 |   0 -------- 17|  0 -----    17|
+    // head   |<-- head 0---->|<--- head 1 -->|<--- head 0 --->|<-- head 1 --->| ... 
+    // cyl    |<--------- ---cyl 0 ---------->|<--------   cyl 1 ------------->| ...
+    // Convert linear block number to CHS format
 
     s = bno * 2; // A 1024 byte block consists of 2 contigious 512 byte sectors
 
@@ -212,7 +218,7 @@ u16 search(INODE* ip, char* target)
             dp = (DIR*)bp;     // pull dp along to the next record
         }
     }
-    prints("\n\rFile does not exist!"); getc();
+    prints("\n\rFile not found"); getc();
     error();
 
     return FAILURE;

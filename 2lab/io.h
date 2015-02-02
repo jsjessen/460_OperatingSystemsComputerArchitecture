@@ -21,14 +21,14 @@ void* get_esp(void);
 
 // Input
 char* gets(char str[]);
-int geti(void);
+u16 geti(void);
 
 // Output
 void rpu(u16 n, u16 base);
 void prints(char *s);         // String
 void printd(int n);           // Signed Int
 void printu(u16 n);           // Unsigned Short 
-void printl(u32 n);           // Unsigned Long
+void printl(u16 n);           // Unsigned Long
 void printo(u16 n);           // OCTAL
 void printx(u16 n);           // HEX
 void printf(char *fmt, ...);  // Formatted

@@ -102,12 +102,12 @@ _putc:
        ! void* putc()  function: get stack pointer 
        !----------------------------------------------
 _get_esp:		
-        mov  sp,ax
+        mov  eax,[esp]
 	    ret
 
        !----------------------------------------------
        ! void* get_ebp()  function: get stack frame pointer 
        !----------------------------------------------
 _get_ebp:		
-        mov  bp,ax
+        mov  eax,[ebp]
 	    ret

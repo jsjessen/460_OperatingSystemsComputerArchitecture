@@ -20,6 +20,41 @@ void do_exit(void);
 void printQueue(char* name, PROC* queue);
 void printList(char* name, PROC* list);
 
+u16 pow(u16 base, u16 power)
+{
+    u16 i;
+    u16 result;
+
+    result = base;
+
+    if(base < 0 || power < 0)
+        return 0;
+
+    if(power == 0)
+        return 1;
+
+    for(i = 1; i < power; i++)
+        result *= base;
+
+    return result;
+}
+
+u16 geti()
+{
+    char str[32];
+    u16 result = 0;
+    u16 len = 0;
+    u16 i;
+
+    gets(str);
+    while(str[len])  
+        len++; 
+
+    for(i = len; i > 0; i--) 
+        result += (str[len - i] - '0') * pow(DEC, i - 1);
+
+    return result;
+}
 void initialize()
 {
     int i;
@@ -38,7 +73,7 @@ void initialize()
         p->status = FREE;
         p->next = &proc[i + 1];
     }
-    proc[NPROC - 1].next = NULL; 
+    p->next = NULL;
 
     running = &proc[0];
     running->status = READY;
@@ -46,45 +81,46 @@ void initialize()
 
     readyQueue = NULL;
 
-    printf("OK\n"); 
+    printf("ok\n"); 
 }
 
 int body()
 {
     char c;
-    printf("proc %d resumes to body()\n", running->pid);
+    printf("P%d resumes to body()\n", running->pid);
 
     while(true)
     {
-      printf("-----------------------------------------\n");
-      printList("freelist  ", freeList);
-      printQueue("readyQueue", readyQueue);
-      printf("-----------------------------------------\n");
+        printf("-----------------------------------------------------------------------\n");
+        printList ("freeList  ", freeList);
+        printQueue("readyQueue", readyQueue);
+        printf("-----------------------------------------------------------------------\n\n");
 
-     printf("proc %d running: priority=%d parent=%d enter a char [s|q|f] : ",
-             running->pid, running->priority, running->parent->pid );
+        printf("P%d running: priority=%d parent=%d enter a char [s|q|f] : ",
+                running->pid, running->priority, running->parent->pid );
 
-      c = getc(); 
-      printf("%c\n", c);
+        c = getc(); 
+        printf("%c\n", c);
 
-      switch(c)
-      {
-          case 'f' : do_kfork();   break; 
-          case 's' : do_tswitch(); break;
-          case 'q' : do_exit();    break; 
-          default  : printf("Unrecognized Command\n");
-      }
+        switch(c)
+        {
+            case 'f' : do_kfork();   break; 
+            case 's' : do_tswitch(); break;
+            case 'q' : do_exit();    break; 
+            default  : printf("Unrecognized Command\n");
+        }
     }
 }
 
-
 int main()
 {
+    color = 0xB3A;
     printf("\nMTX starts in main()\n");
     initialize();      // initialize and create P0 as running
 
-    printf("P0 kfork P1\n");
     kfork(); // P0 kfork() P1
+    printQueue("readyQueue", readyQueue);
+    printf("P%d running\n", running->pid);
 
     while(true)
     {
@@ -103,10 +139,11 @@ PROC* kfork()
 
     if(!p)
     {
-        printf("kfork failed");
+        printf("Cannot fork because there are no free processes.\n");
         return NULL;
     }
 
+    printf("P%d forks child P%d\n", running->pid, p->pid);
     p->status = READY;
     p->priority = 1;
     p->ppid = running->pid;
@@ -130,8 +167,6 @@ PROC* kfork()
     p->ksp = &(p->kstack[SSIZE - 9]); // ksp -> kstack top
 
     enqueue(&readyQueue, p);
-
-    printf("kfork succeded");
     return p;
 }         
 
@@ -146,9 +181,9 @@ void scheduler()
 
 int do_tswitch()
 {
-    printf("proc %d tswitch()\n", running->pid);
+    printf("P%d tswitch()\n", running->pid);
     tswitch();
-    printf("proc %d resumes\n", running->pid);
+    printf("P%d resumes\n", running->pid);
 
     return 0;
 }
@@ -157,16 +192,11 @@ void do_kfork()
 {
     PROC *p;
     p = (PROC*)kfork();
-    printf("proc %d kfork a child\n", p->pid);
-    if (p == 0)
-        printf("kfork failed\n");
-    else
-        printf("child pid = %d\n", p->pid);
 }
 
-void kexit(int exitValue)
+void kexit(u16 exitValue)
 {
-    printf("proc %d in kexit(): exitValue=%d\n", running->pid, exitValue);
+    printf("\nP%d stopped: Exit Value = %d\n", running->pid, exitValue);
     running->exitCode = exitValue;
     running->status = ZOMBIE;
     tswitch();
@@ -174,9 +204,7 @@ void kexit(int exitValue)
 
 void do_exit()
 {
-    int exitValue;
-    printf("proc %d call kexit() to die\n", running->pid);
-    printf("enter a value: ");
-    exitValue = geti();
-    kexit(exitValue);
+    printf("P%d stopping...\n", running->pid);
+    printf("Enter exit value: ");
+    kexit(geti());
 }
