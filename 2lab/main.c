@@ -9,52 +9,12 @@ int nproc;
 
 int color;
 
+void initialize(void);
 int body(void);  
-PROC* delist(PROC** list);
-void enlist(PROC** list, PROC* new);
 PROC* kfork(void);
-void enqueue(PROC **queue, PROC *p);
 int do_tswitch(void);
 void do_kfork(void);
 void do_exit(void);
-void printQueue(char* name, PROC* queue);
-void printList(char* name, PROC* list);
-
-//u16 pow(u16 base, u16 power)
-//{
-//    u16 i;
-//    u16 result;
-//
-//    result = base;
-//
-//    if(base < 0 || power < 0)
-//        return 0;
-//
-//    if(power == 0)
-//        return 1;
-//
-//    for(i = 1; i < power; i++)
-//        result *= base;
-//
-//    return result;
-//}
-//
-//u16 geti()
-//{
-//    char str[32];
-//    u16 result = 0;
-//    u16 len = 0;
-//    u16 i;
-//
-//    gets(str);
-//    while(str[len])  
-//        len++; 
-//
-//    for(i = len; i > 0; i--) 
-//        result += (str[len - i] - '0') * pow(DEC, i - 1);
-//
-//    return result;
-//}
 
 void initialize()
 {
