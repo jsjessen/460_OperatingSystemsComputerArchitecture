@@ -85,14 +85,13 @@ int main()
     ip = get_inode(ROOT_INODE);
 
     // Search root inode for "boot"
-    //ino = search(ip, "boot"); // = 13
-    //ip = get_inode(ino); 
-    ip = get_inode(13);
+    ino = search(ip, "boot"); // = 13
+    ip = get_inode(ino); 
 
     // Prompt for filename to boot, e.g. mtx or image, etc. 
     // You may assume that all bootable files are in the /boot directory.
     //prints("Boot: "); 
-    //gets(os_name); LAB2
+    //gets(os_name);
 
     // Find the file
     ino = search(ip, os_name); // = 34
@@ -101,7 +100,7 @@ int main()
     // Load the data blocks of the OS into memory at segment 0x1000
     // ------------------------------------------------------------
 
-    // IMPORTANT get indirect block BEFORE moving ES
+    // IMPORTANT: get indirect block BEFORE moving ES
     if((u16)ip->i_block[NUM_DIRECT_BLOCKS] != EMPTY)
         get_block((u16)ip->i_block[NUM_DIRECT_BLOCKS], buf2);
     else
@@ -114,7 +113,7 @@ int main()
     for (i = 0; i < NUM_DIRECT_BLOCKS && (u16)ip->i_block[i] != EMPTY; i++)
     {
         // When read/write disk, BIOS INT13 uses (segment, offset) = (ES, BX)
-        // In bs.s readfd() sets BX to the address of the buf parameter
+        // In bs.s, readfd() sets BX to the address of the buf parameter
         // So by using 0, instead of reading a block and writing to a buffer,
         // the block is read and written to (ES, 0)
         get_block((u16)ip->i_block[i], 0); 
@@ -125,7 +124,7 @@ int main()
     for(i = 0; i < BLOCK_SIZE / U16_PER_INT && ((u16*)buf2)[i] != EMPTY; i += 2)
     {
         // When read/write disk, BIOS INT13 uses (segment, offset) = (ES, BX)
-        // In bs.s readfd() sets BX to the address of the buf parameter
+        // In bs.s, readfd() sets BX to the address of the buf parameter
         // So by using 0, instead of reading a block and writing to a buffer,
         // the block is read and written to (ES, 0)
         get_block(((u16*)buf2)[i], 0);
