@@ -1,0 +1,359 @@
+               NOTES #5 Kernel & User Modes
+
+1. Process Image:
+   The execution image of a process consists of 3 (logical) segments:
+
+       -----------------------------  
+       |  CODE   |  DATA   | STACK |
+       -----------------------------
+       |   ^     |         |    ^
+       CS  |    DS        SS    |
+           pc                   sp
+
+In theory, the 3 segments can be independent; each can be at a different memory
+location, as long as they are pointed by the segment registers of CPU. 
+In practice, some of the segments may coincide. For example, in the combined 
+I and D space memory model, all segments are the same, i.e. CS=DS=SS all point 
+at the same segment. In the separate I and D space model, CS points to the I 
+(code) segment, but DS and SS point to the same Data+Stack segment. 
+For simplicity, we shall use the combined I and D space memory model in MTX so 
+that a process image has only ONE segment. The segment size is (up to) 64KB. 
+
+2. Kmode and Umode Images:
+   From now on we shall assume that a process may execute in (either one)
+of two different modes, Kernel mode or User mode, denoted by Kmode or Umode 
+for short. While in Kmode, all processes share the same Code and Data segments,
+which are those of the Kernel, but each process has its own Kstack. The Umode 
+images are in general all different, i.e. each process has a separate Umode 
+memory area consisting of its own Ucode, Udata and Ustack. Also, for simplicity
+we shall assume:
+ 
+      MTX Kernel at (segment) 0x1000
+      8 processes, P1 to P8, with Umode images;
+      Each process has a 64KB Umode image in the segment (pid+1)*0x1000, i.e.
+      P1 at 0x2000, P2 at 0x3000, etc. (We can remove this "FIXED SEGMENT" 
+      restriction later when we implement memory management).
+
+(1). MTX Kernal Space: in the segment 0x1000 to 0x2000, as the figure shows.
+
+                            Kernel Space
+                   <---------- 64 kb -------->
+REAL Address:     0x10000                     0x20000
+Segment Addr      0x1000                      0x2000  
+   0x0000         |                           |             
+   |--------------|---------------------------|------------------------------
+   |Vector        | MTX   Kernel              |   RAM from 0x0000 to 0x8000
+   -------------------------------------------|------------------------------ 
+   Reserved       |Code  PROCs                |  
+   by hardware    |      freeList---->        | All processes in Kernel share same code and data area
+   Interrupt      |      readyQueue-->        | but each has a private stack
+   vector area    |      running->PROC        | 
+                  |                           |  
+                  |All PROCs in Kmode are here|
+                  -----------------------------                    
+
+    Every address is relative/offset to/from 0x1000 
+    Data area and everything is inside the 64kb kernel area 
+
+    Each process needs to be assigned a User space
+
+
+**************************   NOTE: ***************************************
+The addresses shown are 16-bit SGEMENT addresses. Their 20-bit REAL addresses 
+have ONE more HEX 0 at the end.
+**************************************************************************
+
+Now, assume that
+
+     P5 is running in Umode NOW, P2 is READY but not running. The memory map 
+     is shown below:
+
+   -------------------------------------------------------------------------
+   |Vector  | Kernel | UImage1 | UImage2 |          |         | UImage5 |
+   ------------------------------------------------------------------------- 
+            ^ 0x1000           ^ 0x3000                       ^ 0x6000
+            |                  |                              |
+       kCS,kDS,kSS                                           uCS,uDS,uSS 
+
+       How to jump from Kernel space to UImage5 area?
+       One segment model - so code, data, stack all in image area
+       Process jumps back and forth between Kernel mode and User mode
+
+       PID not in user image, it is in Kernel proc struc
+       so to get it, must jump to K get it then jump back to U
+
+At this moment, the CPU's CS,DS,SS registers all point at P5's Umode image 
+at 0x6000. P5's ustack is somewhere in the upper region of UImage5.
+
+When P5 enters Kmode, it will execute the Kernel image at the segment 0x1000. 
+The CPU's CS,DS,SS registers MUST be changed to point at 0x1000, as shown by the
+kCS,kDS,kSS in the diagram. In order for P5 to execute in Kernel, the stack 
+pointer (sp) must also be changed to point at the Kstack of P5. Naturally, P5
+must save its Umode uCS,uDS,uSS and usp in order for it to return to UImage5 
+later. 
+
+While in Kmode, P5 may switch to P2.  P2 may return to its Umode image at
+0x3000. If so, P2 must load CPU's CS,DS,SS with its own uCS,uDS,uSS, all of
+which point at the segment 0x3000. P2's ustack is in the upper part of UImage2. 
+
+Similarly, you should be able to deduce what would happen when P2 enters Kmode 
+to switch to another process, ..... etc.
+
+3. Transition between Umode and Kmode.
+
+A process migrates between Umode and Kmode MANY times during its life time.
+Although every process begins (comes into existence) in Kmode, we shall assume
+that a process is already executing in Umode. This sounds like another 
+chicken-egg problem, but we can handle it easily.
+
+A process in Umode will enter Kmode if any of these events occurs:
+
+   ===================================================================== 
+   (1). traps/exception: divideByZero, IllegalInstruction, InvalidAddress,...
+   (2). Interrupts     : timer interrupts, device I/O completion, etc.
+   (3). syscalls       : INT # (or equivalent instructions on other CPUs).
+   =====================================================================
+
+Traps and Interrupts will be covered later in the course. Here, we shall 
+consider only syscalls. 
+
+Syscall is a mechanism that allows a Umode process to enter Kmode to execute 
+Kernel functions. Syscalls are not ordinary function calls because they involve
+CPU operating in different modes (U to K) and accessing different address 
+spaces. Assume that there are N Kernel functions, each corresponds to a 
+Type = 0,1,2, ..., N-1, e.g.
+
+         call#  KernelFunction 
+         -----  --------------  
+           0       getpid
+           1       fork
+           2       wait
+         ...................
+          99       exit
+
+A process in Umode may call
+
+        int syscall(int call#, arg1, arg2, .... );
+
+which acts as an interface between U mode "calls" to the corresponding 
+Kernel functions. The implementation of syscall(), assuming 4 arguments,
+is shown below:
+
+|========================================================================
+|    syscall(a,b,c,d) int a,b,c,d;     issue INT 80 to enter Kerenl
+|========================================================================
+_syscall:
+        int   80            <==== This is the magic wand!
+        ret
+
+On the Intel CPU, syscalls are implemented as INT #, where # is a (byte) value.
+Although we may use different INT numbers to implement different syscall 
+fucntions, it suffices to use one number: INT 80 (because the parameter a 
+indicates the syscall type). The choice of 80 is quite arbitrary. You may 
+choose any number, as long as it is not used as IRQ or by BIOS. 
+
+When CPU executes the instruction  INT 80,  it performs the following actions.
+              -------------------- 
+                            
+PUSH:            push uFlag =|- - - - O D I T|S Z - c - P - C|  
+                       clear I and T bits of flag register to 0 
+                             (mask out interrupts, trace trap off)
+                 push uCS
+                 push uPC
+              -----------------------------------------------------------
+
+          The vector 80 contents MUST be initialized BEFORE doing INT 80
+
+LOAD:            load (PC,CS) with CONTENTs from (   4*80,       4*80+2  );
+                                                   ----------  --------- 
+                                                   PC=_inth80,  CS=0x1000
+
+              ----------------------------------------------------------
+HANDLER:      continue execution from the loaded (PC, CS) ===>
+              CPU enters INT80 handler in kernel's Code segment.
+              ------------------------------------------------
+
+Corresponding to INT #, the instruction  IRET  pops 3 items off the current
+stack into CPU's PC,CS,Flag registers, in that order. It is used to return from
+interrupt handler (in Kmode) to Umode. 
+
+The INT80 handler is shown below:
+|=======================================================================
+|  int80h() is the entry point for INT 80 interrupts
+|=======================================================================
+_int80h:
+          
+! (1). SAVE Umode registers in ustack, save uSS,uSP in running proc's PROC, 
+!      Accordingly, we modify the proc structure as follows.
+    
+!      typedef struct proc{
+!         struct proc *next;
+!         int    *ksp;           /* offset = 2 bytes */
+!
+!         int    uss, usp;       /* ADD items at BYTE offset 4,6 and */
+!         int    inkmode         /* inkmode at BYTE offset 8
+!
+!         int    pid; 
+!         int    ppid;
+!         int    status;
+!         int    pri;           /* scheduling priority */
+
+!         int    event;         /* sleep event */
+!         char   name[32];      /* name string of proc */
+!         int    exitValue;      // ADD this for exit(exitValue);  
+
+!         int    kstack[SSIZE]; // proc's Kernel mode stack
+      }PROC;        
+
+!     int procSzie = sizeof(PROC):     // a global imported in assembly 
+
+!    The added fields (uss, usp) are for saving (uSS, uSP). 
+
+! (2). Change to running proc's kstack HIGH END (see below for how)
+!      Then, call handler function in C
+
+! (3). RETURN to Umode
+
+! Details of these steps follow.
+
+! **************** SAVE U mode registers *********************************
+        push ax                 ! save all Umode registers in ustack
+        push bx
+        push cx
+        push dx
+        push bp
+        push si
+        push di
+        push es
+        push ds
+! ustack contains : flag,uCS,uPC | ax,bx,cx,dx,bp,si,di,ues,uds
+!                                                            |
+                                                            uSP
+
+! **************  Change DS,SS,sp to K space *****************
+
+! change DS to KDS in order to access data in K space
+        push cs                 ! push kCS (0x1000) 
+        pop  ds                 ! let DS=CS = 0x1000
+
+USS = 4
+USP = 6 
+
+! NOTE: All variables are now relative to DS=0x1000 of Kernel space
+! save running proc's U mode uSS and uSP into its PROC 
+
+        mov bx,_running  	! bx->PROC: ready to access running PROC
+
+        mov USS(bx),ss          ! save uSS  in proc.uss
+        mov USP(bx),sp          ! save uSP  in proc.usp
+
+! change ES SS to K space segment 0x1000 
+        mov  ax,ds              ! must mov segments this way!
+        mov  es,ax            
+        mov  ss,ax              ! SS is now KSS = 0x1000
+
+! We are now ready to switch (running proc's) stack from U space to K space.
+        mov  sp,bx	        ! sp points at running proc
+        add  sp,_procSize       ! sp -> HIGH END of running's kstack[]
+
+! We are now completely in K space, and stack is running proc's (empty) kstack
+
+! *************   CALL handler in C ******************************
+        call  _kcinth           ! call kcinth() in C; 
+
+! *************   RETURN TO U Mode ********************************
+_goUmode:
+        cli                     ! mask out interrupts
+        mov bx,_running 	! bx -> proc
+        mov ax,USS(bx)
+        mov ss,ax               ! restore uSS
+        mov sp,USP(bx)          ! restore uSP
+       
+        pop ds
+        pop es
+        pop di
+        pop si
+        pop bp
+        pop dx
+        pop cx
+        pop bx
+        pop ax                  ! NOTE: return value must be in AX in ustack  
+
+        iret
+=============================================================================
+ The assembly function goUmode() restores Umode stack, then restores Umode
+ registers, followed by an IRET, causing the process to return to Umode.
+
+ These assembly functions are keys to understanding Umode/Kmode transitions. 
+ STUDY THEM CAREFULLY and make sure you know what they do.
+*****************************************************************************
+
+4. Handler Function in C
+           kcinth(){.............}
+   is the syscall handler function in C. The parameters used in  
+           syscall(a,b,c,d)   
+   are still in ustack, which contains
+
+   LOW                                                                 High    
+   | uds,ues,udi,usi,ubp,udx,ucx,ubx,uax |upc,ucs,uflag|retPC, a, b, c, d |...
+      0   1   2   3   4   5   6   7   8    9   10  11    12    13 14 15 16
+     usp
+
+   The segment of ustack is saved in proc.uss, and usp in proc.usp
+
+   Use the get_byte()/put_byte() functions (given below) to implement YOUR 
+   own get_word()/put_word() functions, which get/write 2-byte word from/to
+   (segment, offset).
+
+   With these functions, you can easily copy bytes/words from/to U space.
+   In particular, you can get the syscall parameter from ustack AND modify
+   the ustack contents, e.g. the saved AX register for return value to U
+   mode.
+
+5. Action Functions:
+   In syscall(a,b,c,d), the parameter a is the syscall number. Based on the 
+   call# a, you can execute the desired action function, passing any needed
+   parameters b,c,d to it.
+
+                           RETURN VALUE:
+   Each action function returns a value back to Umode. The return value is 
+   carried in the AX register. Since goUmode() pops the saved AX from ustack, 
+   you must fix up the saved AX in ustack before goUmode().
+
+
+6. Inter-segment copy functions
+
+#define MTXSEG 0x1000
+
+u8 get_byte(u16 segment, u16 offset)
+{
+  u8 byte;
+  setds(segment);
+  byte = *(u8 *)offset;
+  setds(MTXSEG);
+  return byte;
+}
+
+// WRITE YOUR OWN 
+   int get_word(u16 segment, u16 offset), which gets a WORD
+
+int put_byte(u8 byte, u16 segment, u16 offset)
+{
+  setds(segment);
+  *(u8 *)offset = byte;
+  setds(MTXSEG);
+}
+
+// WRITE YOUR OWN 
+   int put_word(u16 word, u16 segment, u16 offset), which writes a WORD
+
+
+! setds(u16 segment) in assembly: sets CPU's DS to segment value
+	.globl _setds
+_setds:
+	push bp			
+	mov  bp,sp		
+	mov  ds,4[bp]		! load ds with segment value
+	pop  bp
+	ret
+	

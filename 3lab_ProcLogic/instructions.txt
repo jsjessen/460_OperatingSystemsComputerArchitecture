@@ -1,6 +1,14 @@
                       LAB Assignment #3
                       DUE: in one week
 
+
+Wake: Loop through sleepList (starting at front of course) and check if sleep event matches wake event
+      each time such a process is found, dequeue from sleepList and enqueue to readyQueue
+
+Wait: Sleep on your proc struct address, because every child has a pointer to parent proc
+      So you can then wake if child pointing to you dies (parent doesn't just start running, goes to readyQueue)
+
+
       IMPLEMENT exit, sleep, wakeup, wait functions in the MTX kernel.
 
 1. Download files from samples/LAB3:
