@@ -20,28 +20,20 @@ void enlist(PROC** list, PROC* new)
     p->next = new;
 }
 
-// Get first free process
-PROC* delist(PROC** list, PROC* removeMe)
+// Get first process from list
+PROC* delist(PROC** list)
 {
     PROC* p = *list;
 
-    if(*list != NULL && removeMe == *list)
-        *list = (*list)->next; // First item
-    else
+    if(!(*list))
     {
-        // Search for proc
-        while(p && p->next != removeMe)
-            p = p->next;
-
-        // Not in list 
-        if(!p) return NULL;
-
-        // p->next == removeMe
-        p->next = removeMe->next; 
+        printf("Unable to delist because list is empty\n");
+        return NULL;
     }
+    *list = (*list)->next;
 
-    removeMe->next = NULL;
-    return removeMe;
+    p->next = NULL;
+    return p; 
 }
 
 // Print contents of list 

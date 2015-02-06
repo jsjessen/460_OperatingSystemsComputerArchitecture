@@ -11,8 +11,8 @@ void ksleep(int event)
         return;
     else
     {
-        running->status = SLEEPING;  // Mark itself as SLEEPING
-        enlist(&sleepList, running); // Consider changing sleepList to a queue
+        running->status = SLEEPING;   // Mark itself as SLEEPING
+        enqueue(&sleepList, running); // Using queue for fairness
     }
 
     tswitch(); 
@@ -21,14 +21,10 @@ void ksleep(int event)
 // wakeup ALL PROCs sleeping on event
 void kwakeup(int event)
 {
-    PROC* p = sleepList;
+    PROC* p;
 
-    while(p)
-    {
-        // If event matches, move from sleepList to readyQueue
-        if(p->event == event)
-            enqueue(&readyQueue, delist(&sleepList, p));
-    }
+    while(p = event_dequeue(&sleepList, event))
+            enqueue(&readyQueue, p);
 }
 
 // to wait for a ZOMBIE child

@@ -46,6 +46,31 @@ PROC* dequeue(PROC** queue)
     return p; 
 }
 
+// Remove first process in queue with matching event 
+PROC* event_dequeue(PROC** queue, int event)
+{
+    PROC* removeMe = NULL;
+    PROC* p = *queue;
+
+    // Check head of queue
+    if(*queue && (*queue)->event == event)
+        return dequeue(queue);
+
+    // Search 
+    while(p->next && p->next->event != event)
+        p = p->next;
+
+    // No proc found 
+    if(!p) return NULL;
+
+    // p->next == removeMe
+    removeMe = p->next;
+    p->next = removeMe->next; // bypass
+
+    removeMe->next = NULL;
+    return removeMe;
+}
+
 // Print contents of queue
 void printQueue(char* name, PROC* queue)
 {

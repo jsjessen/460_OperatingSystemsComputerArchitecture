@@ -10,6 +10,7 @@
 
 void enqueue(PROC** queue, PROC* new);
 PROC* dequeue(PROC** queue);
+PROC* event_dequeue(PROC** queue, int event);
 void printQueue(char* name, PROC* queue);
 
 

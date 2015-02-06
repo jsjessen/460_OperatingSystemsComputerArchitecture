@@ -114,7 +114,7 @@ int main()
 PROC* kfork()
 {
     int i;
-    PROC* p = delist(&freeList, freeList); // get a first proc from freeList
+    PROC* p = delist(&freeList); // get a first proc from freeList
 
     if(!p)
     {

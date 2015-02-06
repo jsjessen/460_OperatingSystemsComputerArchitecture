@@ -9,7 +9,7 @@
 #include "../type.h"
 
 void enlist(PROC** list, PROC* new);
-PROC* delist(PROC** list, PROC* removeMe);
+PROC* delist(PROC** list);
 void printList(char* name, PROC* list);
 
 
