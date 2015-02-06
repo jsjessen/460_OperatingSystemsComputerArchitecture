@@ -14,7 +14,7 @@ build_booter()
         "bcc -o $dir/main.o -c -ansi $dir/main.c"
 
     try "Linking booter object code..." \
-        "ld86 -o booter -d $dir/bs.o $dir/main.o /usr/lib/bcc/libc.a"
+        "ld86 -o $dir/$booter -d $dir/bs.o $dir/main.o /usr/lib/bcc/libc.a"
 
     gold_echo "Verifying booter is within size limit..." \ 
     size=$(stat -c %s $dir/$booter)
