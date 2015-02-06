@@ -30,7 +30,7 @@ typedef struct proc
     int    ppid;         // parent pid 
     struct proc *parent; // pointer to parent PROC
 
-    int    kstack[SSIZE]; // SSIZE=1024 This processes stack
+    int    kstack[SSIZE]; // SSIZE=1024 This process's stack
 }PROC;
 
 

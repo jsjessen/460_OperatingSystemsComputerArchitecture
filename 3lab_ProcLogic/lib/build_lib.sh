@@ -1,38 +1,16 @@
 #!/bin/sh
+. ~/Documents/460_OperatingSystemsComputerArchitecture/fancy_output.sh 
 
-lib="mylib.a"
 
-red='\033[1;31m'
-dark_red='\033[0;31m'
-gold='\033[0;33m'
-green='\033[1;32m'
-cyan='\033[0;36m'     
-NC='\033[0m' # No Color
-
-gold_echo()
+build_lib()
 {
-    echo -n "${gold}$*${NC}"
+    dir=$1
+    lib=$2
+
+    try "Building library $dir/${lib}..." \
+        "rm -f $dir/$lib" \
+        "bcc -o $dir/io.o -c -ansi $dir/io.c" \
+        "bcc -o $dir/queue.o -c -ansi $dir/queue.c" \
+        "bcc -o $dir/list.o -c -ansi $dir/list.c" \
+        "ar cr $dir/$lib $dir/io.o $dir/queue.o $dir/list.o"
 }
-
-try()
-{
-    for COMMAND in "$@"
-    do
-        echo -n "${cyan}"
-        $COMMAND
-        if [ $? -ne 0 ]; then
-            echo "${red}FAILED${NC}"
-            exit 1
-        fi
-    done
-
-    echo "${green}OK${NC}"
-}
-
-gold_echo "Rebuilding ${lib}..."
-try "rm -f $lib" \
-    "bcc -o io.o -c -ansi io.c" \
-    "bcc -o queue.o -c -ansi queue.c" \
-    "bcc -o list.o -c -ansi list.c" \
-    "ar cr $lib io.o queue.o list.o" \
-    "ar t $lib"

@@ -1,7 +1,6 @@
                       LAB Assignment #3
                       DUE: in one week
 
-
 Wake: Loop through sleepList (starting at front of course) and check if sleep event matches wake event
       each time such a process is found, dequeue from sleepList and enqueue to readyQueue
 

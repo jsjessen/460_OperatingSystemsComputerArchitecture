@@ -1,60 +1,23 @@
-#include "io.h"
-#include "type.h"
-#include "queue.h"
-#include "list.h"
+#include "lib/type.h"
+#include "lib/io.h"
+#include "lib/queue.h"
+#include "lib/list.h"
+
+#include "wait.c"
+#include "kernel.c"
 
 PROC proc[NPROC], *running, *freeList, *sleepList, *readyQueue;
-int procSize = sizeof(PROC);
-int nproc; 
 
+int procSize = sizeof(PROC);
+int nproc = 0; 
 int color;
 
+void initialize(void);
 int body(void);  
-PROC* delist(PROC** list);
-void enlist(PROC** list, PROC* new);
 PROC* kfork(void);
-void enqueue(PROC **queue, PROC *p);
 int do_tswitch(void);
 void do_kfork(void);
 void do_exit(void);
-void printQueue(char* name, PROC* queue);
-void printList(char* name, PROC* list);
-
-//u16 pow(u16 base, u16 power)
-//{
-//    u16 i;
-//    u16 result;
-//
-//    result = base;
-//
-//    if(base < 0 || power < 0)
-//        return 0;
-//
-//    if(power == 0)
-//        return 1;
-//
-//    for(i = 1; i < power; i++)
-//        result *= base;
-//
-//    return result;
-//}
-//
-//u16 geti()
-//{
-//    char str[32];
-//    u16 result = 0;
-//    u16 len = 0;
-//    u16 i;
-//
-//    gets(str);
-//    while(str[len])  
-//        len++; 
-//
-//    for(i = len; i > 0; i--) 
-//        result += (str[len - i] - '0') * pow(DEC, i - 1);
-//
-//    return result;
-//}
 
 void initialize()
 {
@@ -63,6 +26,7 @@ void initialize()
 
     printf("Initializing...");
 
+    // All procs start in freeList
     freeList = &proc[1];
     for (i = 0; i < NPROC; i++)
     {
@@ -76,6 +40,7 @@ void initialize()
     }
     p->next = NULL;
 
+    // P0 starts off running
     running = &proc[0];
     running->status = READY;
     running->parent = &proc[0]; // Parent = self, no parent
@@ -97,7 +62,7 @@ int body()
         printQueue(" readyQueue", readyQueue);
         printf("-----------------------------------------------------------------------\n");
 
-        printf("\nP%d running: priority=%d parent=%d enter a char [s|q|f] : ",
+        printf("\nP%d running: priority=%d parent=%d enter a char [s|f|q| p|z|a| w ] : ",
                 running->pid, running->priority, running->parent->pid );
 
         c = getc(); 
@@ -105,9 +70,14 @@ int body()
 
         switch(c)
         {
-            case 'f' : do_kfork();   break; 
-            case 's' : do_tswitch(); break;
-            case 'q' : do_exit();    break; 
+            case 's' : do_tswitch();   break;
+            case 'f' : do_kfork();     break;
+            case 'q' : do_exit();      break; 
+            case 'p' : do_ps();        break; 
+            case 'z' : do_sleep();     break; 
+            case 'a' : do_wakeup();    break; 
+            case 'w' : do_wait();      break;
+
             default  : printf("Unrecognized Command\n");
         }
     }
@@ -209,4 +179,38 @@ void do_exit()
     printf("P%d stopping...\n", running->pid);
     printf("Enter exit value: ");
     kexit(geti());
+}
+
+// he uses proc structure address for sleep event
+// waiting desposes of 1 dead child if any
+// so if 2 dead children, must wait twice to dispose of both
+
+/***********************************************************
+  Write YOUR C code for
+  ksleep(), kwakeup()
+  kexit()
+  kwait()
+
+  Then, write your C code for
+  do_ps(), do_sleep(), do_wakeup(), do_wait()
+ ************************************************************/
+
+// p : print pid, ppid and status of ALL PROCs
+void ps()
+{
+    int i;
+    PROC* p;
+
+    printf("PID  PPID  STATUS\n");
+    printf("---  ----  ------\n");
+
+    for (i = 0; i < NPROC; i++)
+    {
+        p = &proc[i];
+
+        if(p->status == FREE)
+            printf("        %d\n", p->status);
+        else
+            printf("%d  %d  %d\n", p->pid, p->ppid, p->status);
+    }
 }
