@@ -3,12 +3,6 @@
 #include "lib/queue.h"
 #include "lib/list.h"
 
-PROC proc[NPROC], *running, *freeList, *sleepList, *readyQueue;
-
-int procSize = sizeof(PROC);
-int nproc = 0; 
-int color;
-
 void initialize(void);
 int body(void);  
 PROC* kfork(void);
@@ -16,6 +10,19 @@ void kexit(u16 exitValue);
 
 #include "wait.c"
 #include "kernel.c"
+
+void help_menu()
+{
+    printf("------------\n");
+    printf(" Switch : s\n"); 
+    printf(" Fork   : f\n");
+    printf(" Print  : p\n");
+    printf(" Sleep  : z\n");
+    printf(" Wake   : a\n");
+    printf(" Wait   : w\n");
+    printf(" Quit   : q\n");
+    printf("------------\n");
+}
 
 void initialize()
 {
@@ -60,14 +67,16 @@ int body()
         printQueue(" readyQueue", readyQueue);
         printf("-----------------------------------------------------------------------\n");
 
-        printf("\nP%d running: priority=%d parent=%d enter a char [s|f|q| p|z|a| w ] : ",
-                running->pid, running->priority, running->parent->pid );
+        printf("\nP%d (priority=%d parent=%d) : ", running->pid, running->priority, running->parent->pid );
 
         c = getc(); 
         printf("%c\n", c);
 
         switch(c)
         {
+            case '?' :
+            case 'h' : help_menu();    break;
+
             case 's' : do_tswitch();   break;
             case 'f' : do_kfork();     break;
             case 'q' : do_exit();      break; 
@@ -105,7 +114,7 @@ int main()
 PROC* kfork()
 {
     int i;
-    PROC* p = delist(&freeList); // get a FREE proc from freeList
+    PROC* p = delist(&freeList, freeList); // get a first proc from freeList
 
     if(!p)
     {
@@ -149,10 +158,6 @@ void scheduler()
     color = 0x000A + (running->pid % 6);
 }
 
-// he uses proc structure address for sleep event
-// waiting desposes of 1 dead child if any
-// so if 2 dead children, must wait twice to dispose of both
-
 /***********************************************************
   Write YOUR C code for
   ksleep(), kwakeup()
@@ -163,28 +168,38 @@ void scheduler()
   do_ps(), do_sleep(), do_wakeup(), do_wait()
  ************************************************************/
 
-// p : print pid, ppid and status of ALL PROCs
-void ps()
+void kexit(u16 exitValue)
 {
     int i;
-    PROC* p;
+    int count = 0;
+    PROC *p;
 
-    printf("PID  PPID  STATUS\n");
-    printf("---  ----  ------\n");
-
+    // Look for children
     for (i = 0; i < NPROC; i++)
     {
         p = &proc[i];
 
-        if(p->status == FREE)
-            printf("        %d\n", p->status);
-        else
-            printf("%d  %d  %d\n", p->pid, p->ppid, p->status);
-    }
-}
+        // Count active procs while your at it
+        if(p->status != ZOMBIE && p->status != FREE)
+            count++;
 
-void kexit(u16 exitValue)
-{
+        // Give any children to P1
+        if(p->ppid == running->pid)
+            p->ppid = proc[1].pid;
+    }
+
+    // If the dying process is P1
+    // Don't let it die unless it is just P0 and P1
+    if(running->pid == proc[1].pid && count > 2)
+    {
+        printf("\nP1 still has children and refuses to die!\n");
+        return;
+    }
+
+    // If parent is sleeping, wake parent 
+    if(running->parent->status == SLEEPING)
+        kwakeup((int)running->parent);
+
     printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
     running->exitCode = exitValue;
     running->status = ZOMBIE;

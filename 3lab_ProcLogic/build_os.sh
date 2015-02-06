@@ -38,7 +38,7 @@ try "Linking OS object code..." \
     "ld86 -o $os -d ts.o ${os}.o $lib_dir/$lib /usr/lib/bcc/libc.a"
 
 try "Dumping $booter to first block of ${my_image}..." \
-    "dd if=$booter of=$my_image bs=1024 count=1 conv=notrunc"
+    "dd if=$boot_dir/$booter of=$my_image bs=1024 count=1 conv=notrunc"
 
 try "Copying $os to $my_image/boot/${os}..." \
     "sudo mount -o loop $my_image /mnt" \

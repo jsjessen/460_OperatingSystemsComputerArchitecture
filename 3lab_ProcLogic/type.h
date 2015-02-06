@@ -13,7 +13,7 @@
 
 void tswitch(void);
 
-typedef enum { FREE, READY, RUNNING, STOPPED, SLEEP, ZOMBIE } status_t;
+typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
 typedef enum { FAILURE, SUCCESS } result_t;
 typedef enum { false, true } bool;
 
@@ -32,6 +32,12 @@ typedef struct proc
 
     int    kstack[SSIZE]; // SSIZE=1024 This process's stack
 }PROC;
+
+PROC proc[NPROC], *running, *freeList, *sleepList, *readyQueue;
+
+int procSize = sizeof(PROC);
+int nproc = 0; 
+int color;
 
 
 #endif
