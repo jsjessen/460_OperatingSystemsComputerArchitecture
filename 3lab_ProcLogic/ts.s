@@ -24,8 +24,9 @@
 
         OSSEG  = 0x1000
 
-        .globl _main,_running,_scheduler,_proc,_procSize,_color  ! IMPORT
-        .globl _getc,_putc,_tswitch,_resume,_get_esp,_get_ebp    ! EXPORT
+        .globl _main,_running,_scheduler,_proc,_procSize  ! IMPORT
+        .globl _tswitch,_resume                           ! EXPORT
+
 
         jmpi   start,OSSEG              ! CS=OSSEG, IP=start
 
@@ -71,43 +72,3 @@ RESUME:
         pop  bx
         pop  ax
         ret
-
-
-        !---------------------------------------------
-        !  char getc()       function: return a char
-        !---------------------------------------------
-_getc:
-        xorb ah,ah           ! clear ah
-        int  0x16            ! call BIOS to get a char in AX
-        ret 
-
-        !----------------------------------------------
-        ! char putc(char c)  function: print a char
-        !----------------------------------------------
-_putc:           
-        push  bp
-        mov   bp,sp
-    
-        movb  al,4[bp]        ! get the char into aL
-        movb  ah,#14          ! aH = 14
-        mov   bx,_color       ! bL = color
-        !movb  bl,#0x0D        ! bL = cyan color 
-        int   0x10            ! call BIOS to display the char
-
-        pop   bp
-        ret
-
-
-       !----------------------------------------------
-       ! void* putc()  function: get stack pointer 
-       !----------------------------------------------
-_get_esp:		
-        mov  ax,sp
-	    ret
-
-       !----------------------------------------------
-       ! void* get_ebp()  function: get stack frame pointer 
-       !----------------------------------------------
-_get_ebp:		
-        mov  ax,bp
-	    ret

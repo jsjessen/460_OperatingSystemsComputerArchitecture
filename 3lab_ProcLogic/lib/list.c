@@ -1,5 +1,4 @@
-#include "io.h"
-#include "type.h"
+#include "list.h"
 
 // Put process at end of free list
 void enlist(PROC** list, PROC* new)

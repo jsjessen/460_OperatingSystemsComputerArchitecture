@@ -1,7 +1,6 @@
 #!/bin/sh
 . ~/Documents/460_OperatingSystemsComputerArchitecture/fancy_output.sh 
 
-
 build_booter()
 {
     dir=$1

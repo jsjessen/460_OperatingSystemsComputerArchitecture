@@ -5,7 +5,8 @@
 #define __LIST_H__
 
 
-#include "type.h"
+#include "io.h"
+#include "../type.h"
 
 void enlist(PROC** list, PROC* new);
 PROC* delist(PROC** list);

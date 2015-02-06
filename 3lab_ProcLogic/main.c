@@ -1,10 +1,7 @@
-#include "lib/type.h"
+#include "type.h"
 #include "lib/io.h"
 #include "lib/queue.h"
 #include "lib/list.h"
-
-#include "wait.c"
-#include "kernel.c"
 
 PROC proc[NPROC], *running, *freeList, *sleepList, *readyQueue;
 
@@ -15,9 +12,10 @@ int color;
 void initialize(void);
 int body(void);  
 PROC* kfork(void);
-int do_tswitch(void);
-void do_kfork(void);
-void do_exit(void);
+void kexit(u16 exitValue);
+
+#include "wait.c"
+#include "kernel.c"
 
 void initialize()
 {
@@ -151,36 +149,6 @@ void scheduler()
     color = 0x000A + (running->pid % 6);
 }
 
-int do_tswitch()
-{
-    printf("P%d tswitch()\n\n", running->pid);
-    tswitch();
-    printf("P%d resumes\n", running->pid);
-
-    return 0;
-}
-
-void do_kfork()
-{
-    PROC *p;
-    p = (PROC*)kfork();
-}
-
-void kexit(u16 exitValue)
-{
-    printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
-    running->exitCode = exitValue;
-    running->status = ZOMBIE;
-    tswitch();
-} 
-
-void do_exit()
-{
-    printf("P%d stopping...\n", running->pid);
-    printf("Enter exit value: ");
-    kexit(geti());
-}
-
 // he uses proc structure address for sleep event
 // waiting desposes of 1 dead child if any
 // so if 2 dead children, must wait twice to dispose of both
@@ -214,3 +182,11 @@ void ps()
             printf("%d  %d  %d\n", p->pid, p->ppid, p->status);
     }
 }
+
+void kexit(u16 exitValue)
+{
+    printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
+    running->exitCode = exitValue;
+    running->status = ZOMBIE;
+    tswitch();
+} 

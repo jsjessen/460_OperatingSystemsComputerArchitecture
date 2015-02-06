@@ -5,7 +5,8 @@
 #define __QUEUE_H__
 
 
-#include "type.h"
+#include "io.h"
+#include "../type.h"
 
 void enqueue(PROC** queue, PROC* new);
 PROC* dequeue(PROC** queue);

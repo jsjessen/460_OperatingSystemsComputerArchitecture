@@ -1,6 +1,4 @@
-#include "io.h"
-#include "type.h"
-
+#include "queue.h"
 
 // Add process to priority queue
 void enqueue(PROC** queue, PROC* new)
