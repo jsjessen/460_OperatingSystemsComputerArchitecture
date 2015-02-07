@@ -62,13 +62,14 @@ void initialize()
 int body()
 {
     char c;
-    printf("P%d resumes to body()\n", running->pid);
+    printf("\n\nP%d resumes to body()", running->pid);
 
     while(true)
     {
-        printf("-----------------------------------------------------------------------\n");
+        printf("\n-----------------------------------------------------------------------\n");
         printList (" freeList  ", freeList);
         printQueue(" readyQueue", readyQueue);
+        printList (" sleepList ", sleepList);
         printf("-----------------------------------------------------------------------\n");
 
         printf("\nP%d (priority=%d parent=%d) : ", running->pid, running->priority, running->parent->pid );
@@ -126,7 +127,7 @@ PROC* kfork()
         return NULL;
     }
 
-    printf("P%d forks child P%d\n", running->pid, p->pid);
+    printf("P%d forks child P%d", running->pid, p->pid);
     p->status = READY;
     p->priority = 1;
     p->ppid = running->pid;

@@ -3,9 +3,9 @@
 
 void do_tswitch() // s
 {
-    printf("P%d tswitch()\n\n", running->pid);
+    printf("P%d tswitch()", running->pid);
     tswitch();
-    printf("P%d resumes\n", running->pid);
+    printf("\n\nP%d resumes", running->pid);
 }
 
 void do_kfork() // f
@@ -60,7 +60,7 @@ void do_ps()
         if(p->status == FREE)
             printf("           %s\n", states[p->status]);
         else
-            printf("  %s          %s       %d       %d   \n", 
+            printf("  %s          %s     %d       %d   \n", 
                     p->name, states[p->status], p->pid, p->ppid);
     }
     printf("======================================\n");

@@ -23,8 +23,11 @@ void kwakeup(int event)
 {
     PROC* p;
 
-    while(p = event_dequeue(&sleepList, event))
-            enqueue(&readyQueue, p);
+    while((p = event_dequeue(&sleepList, event)))
+    {
+        p->status = READY;
+        enqueue(&readyQueue, p);
+    }
 }
 
 // to wait for a ZOMBIE child
