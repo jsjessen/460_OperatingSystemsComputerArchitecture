@@ -14,21 +14,29 @@
 void tswitch(void);
 
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
+char* states[] = { "  free  ", " ready  ", "running ", "stopped ", "sleeping", " zombie " };
+
 typedef enum { FAILURE, SUCCESS } result_t;
 typedef enum { false, true } bool;
 
 typedef struct proc
 {
     struct proc *next;   // for linked list
-    int*   ksp;          // saved sp; offset = 2 
+    int*   ksp;          // saved sp; offset = 2 bytes
 
-    int    status;       // FREE|READY|SLEEP|BLOCK|ZOMBIE
-    int    priority;     // priority
-    int    event;
-    int    exitCode;
-    int    pid;          // process pid
+    int    uss, usp;     // Add items at BYTE offset 4, 6, and
+    int    inkmode;      // inkmode at BYTE offset 8
+
+    int    pid;          // process id
     int    ppid;         // parent pid 
     struct proc *parent; // pointer to parent PROC
+
+    int    status;       // FREE|READY|SLEEP|BLOCK|ZOMBIE
+    int    priority;     // scheduling priority
+
+    int    event;        // sleep event
+    char   name[32];     // name string of proc
+    int    exitValue;
 
     int    kstack[SSIZE]; // SSIZE=1024 This process's stack
 }PROC;

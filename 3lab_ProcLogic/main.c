@@ -36,12 +36,16 @@ void initialize()
     for (i = 0; i < NPROC; i++)
     {
         p = &proc[i];
-        p->priority = 0;
+
+        p->next = &proc[i + 1];
         p->pid = i;
         p->ppid = 0;
         p->parent = NULL;
         p->status = FREE;
-        p->next = &proc[i + 1];
+        p->priority = 0;
+        p->event = 0;
+        p->name[0] = '\0';
+        p->exitValue = 0;
     }
     p->next = NULL;
 
@@ -201,7 +205,7 @@ void kexit(u16 exitValue)
         kwakeup((int)running->parent);
 
     printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
-    running->exitCode = exitValue;
+    running->exitValue = exitValue;
     running->status = ZOMBIE;
     tswitch();
 } 

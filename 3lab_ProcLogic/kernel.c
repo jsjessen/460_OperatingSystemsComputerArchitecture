@@ -49,16 +49,19 @@ void do_ps()
     int i;
     PROC* p;
 
-    printf("PID  PPID  STATUS\n");
-    printf("---  ----  ------\n");
+    printf("======================================\n");
+    printf("  Name       Status     PID     PPID  \n");
+    printf("--------------------------------------\n");
 
     for (i = 0; i < NPROC; i++)
     {
         p = &proc[i];
 
         if(p->status == FREE)
-            printf("        %d\n", p->status);
+            printf("           %s\n", states[p->status]);
         else
-            printf("%d  %d  %d\n", p->pid, p->ppid, p->status);
+            printf("  %s          %s       %d       %d   \n", 
+                    p->name, states[p->status], p->pid, p->ppid);
     }
+    printf("======================================\n");
 }

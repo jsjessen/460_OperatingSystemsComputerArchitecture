@@ -57,7 +57,7 @@ int kwait(int* status)
             p = &proc[i];
             if(p->ppid == running->pid && p->status == ZOMBIE)
             {
-                *status = p->exitCode;
+                *status = p->exitValue;
                 enlist(&freeList, p);
                 return p->pid;
             }

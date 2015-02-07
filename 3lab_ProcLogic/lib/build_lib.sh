@@ -12,6 +12,12 @@ build_lib()
     try "Compiling putc..." \
         "as86 -o $dir/putc.o $dir/putc.s" 
 
+    try "Compiling math..." \
+        "bcc -o $dir/math.o -c -ansi $dir/math.c" 
+
+    try "Compiling string..." \
+        "bcc -o $dir/string.o -c -ansi $dir/string.c" 
+    
     try "Compiling io..." \
         "bcc -o $dir/io.o -c -ansi $dir/io.c" 
 

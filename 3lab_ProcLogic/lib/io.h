@@ -5,6 +5,7 @@
 #define __IO_H__
 
 #include <stdarg.h>
+#include "string.h"
 
 #define OCT 8
 #define DEC 10
