@@ -27,7 +27,7 @@ PROC* delist(PROC** list)
 
     if(!(*list))
     {
-        printf("Unable to delist because list is empty\n");
+        printf("Unable to delist because the list is empty!\n");
         return NULL;
     }
     *list = (*list)->next;

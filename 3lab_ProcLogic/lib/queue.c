@@ -37,7 +37,7 @@ PROC* dequeue(PROC** queue)
 
     if(!(*queue))
     {
-        printf("Unable to dequeue because queue is empty\n");
+        printf("Unable to dequeue because the queue is empty!\n");
         return NULL;
     }
     *queue = (*queue)->next;

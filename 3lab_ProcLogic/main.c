@@ -72,7 +72,7 @@ int body()
         printList (" sleepList ", sleepList);
         printf("-----------------------------------------------------------------------\n");
 
-        printf("\nP%d (priority=%d parent=%d) : ", running->pid, running->priority, running->parent->pid );
+        printf("P%d (priority=%d parent=%d) : ", running->pid, running->priority, running->parent->pid );
 
         c = getc(); 
         printf("%c\n", c);
@@ -103,7 +103,7 @@ int main()
     printf("-----------------\n");
     printf("Help Menu: h or ?\n");
     printf("-----------------\n");
-    initialize();      // initialize and create P0 as running
+    initialize(); // initialize and create P0 as running
 
     kfork(); // P0 kfork() P1
     printQueue("readyQueue", readyQueue);
@@ -115,7 +115,7 @@ int main()
         {
             printf("P0 switch process");
             tswitch();   // P0 switch to run P1
-            printf("P%d running\n", running->pid);
+            printf("\n\nP%d running...\n", running->pid);
         }
     }
 }
@@ -172,16 +172,6 @@ void scheduler()
     color = 0x000A + (running->pid % 6);
 }
 
-/***********************************************************
-  Write YOUR C code for
-  ksleep(), kwakeup()
-  kexit()
-  kwait()
-
-  Then, write your C code for
-  do_ps(), do_sleep(), do_wakeup(), do_wait()
- ************************************************************/
-
 void kexit(u16 exitValue)
 {
     int i;
@@ -197,7 +187,7 @@ void kexit(u16 exitValue)
         if(p->status != ZOMBIE && p->status != FREE)
             count++;
 
-        // Give any children to P1
+        // Give any orphans to P1
         if(p->ppid == running->pid)
             p->ppid = proc[1].pid;
     }
@@ -206,16 +196,19 @@ void kexit(u16 exitValue)
     // Don't let it die unless it is just P0 and P1
     if(running->pid == proc[1].pid && count > 2)
     {
-        printf("\nP1 still has children and will never abandon them!");
+        printf("\nP1 still has children and will never abandon them!\n");
         return;
     }
+
+    running->exitValue = exitValue;
+    running->status = ZOMBIE;
+    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
 
     // If parent is sleeping, wake parent 
     if(running->parent->status == SLEEPING)
         kwakeup((int)running->parent);
 
-    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
-    running->exitValue = exitValue;
-    running->status = ZOMBIE;
+    // Give up CPU 
     tswitch();
+    printf("\nI AM BACK FROM THE DEAD\n");
 } 

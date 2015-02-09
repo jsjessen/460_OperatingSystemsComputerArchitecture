@@ -16,7 +16,6 @@ void do_kfork() // f
 
 void do_exit() // q
 {
-    printf("P%d stopping...\n", running->pid);
     printf("Enter exit value: ");
     kexit(geti());
 }
@@ -47,11 +46,11 @@ void do_wakeup() // a
 void do_wait() // w
 {
     int pid, status;
-    printf("P%d waits for dead child", running->pid); 
+    printf("P%d waits for a child process to die", running->pid); 
     pid = kwait(&status);
 
     if(pid >= 0)
-        printf("\n\nP%d finds zombie child P%d and resumes", running->pid, pid);
+        printf("\n\nP%d finds zombie child P%d with exit status %x and resumes", running->pid, pid, status);
 }
 
 // p : print pid, ppid and status of ALL PROCs
