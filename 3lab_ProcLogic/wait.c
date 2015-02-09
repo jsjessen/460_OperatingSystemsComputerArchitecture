@@ -48,7 +48,7 @@ int kwait(int* status)
     // If no children, don't wait
     if(!children)
     {
-        printf("P%d has no children, so will not wait.\n", running->pid);
+        printf("\nP%d has no children to wait for!\n\n", running->pid);
         return -1;
     }
 
@@ -61,7 +61,8 @@ int kwait(int* status)
             if(p->ppid == running->pid && p->status == ZOMBIE)
             {
                 *status = p->exitValue;
-                enlist(&freeList, p);
+                p->status = FREE; // parent finds p, changes it from zombie to free
+                enqueue(&freeList, p);
                 return p->pid;
             }
         }

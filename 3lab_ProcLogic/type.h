@@ -14,7 +14,7 @@
 void tswitch(void);
 
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
-char* states[] = { "  free  ", " ready  ", "running ", "stopped ", "sleeping", " zombie " };
+char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
 typedef enum { FAILURE, SUCCESS } result_t;
 typedef enum { false, true } bool;

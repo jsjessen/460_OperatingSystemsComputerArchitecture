@@ -23,8 +23,17 @@ void do_exit() // q
 
 void do_sleep() // z
 {
-    printf("Enter event value to sleep on: ");
-    ksleep(geti());
+    int event = 0;
+    while(event <= 0)
+    {
+        printf("Enter event value to sleep on: ");
+        event = geti();
+
+        if(event <= 0)
+            printf("\nEvent value must be greater than zero\n\n");
+    }
+
+    ksleep(event);
 }
 
 // wakeup ALL PROCs sleeping on event
@@ -38,9 +47,11 @@ void do_wakeup() // a
 void do_wait() // w
 {
     int pid, status;
-    printf("P%d waits for dead child\n", running->pid); 
+    printf("P%d waits for dead child", running->pid); 
     pid = kwait(&status);
-    printf("P%d found a ZOMBIE child P%d (exitValue=%d)\n", running->pid, pid, status);
+
+    if(pid >= 0)
+        printf("\n\nP%d finds zombie child P%d and resumes", running->pid, pid);
 }
 
 // p : print pid, ppid and status of ALL PROCs
@@ -58,9 +69,9 @@ void do_ps()
         p = &proc[i];
 
         if(p->status == FREE)
-            printf("           %s\n", states[p->status]);
+            printf("             %s\n", states[p->status]);
         else
-            printf("  %s          %s     %d       %d   \n", 
+            printf("  %s           %s    %d       %d   \n", 
                     p->name, states[p->status], p->pid, p->ppid);
     }
     printf("======================================\n");

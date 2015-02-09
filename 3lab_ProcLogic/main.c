@@ -13,15 +13,15 @@ void kexit(u16 exitValue);
 
 void help_menu()
 {
-    printf("------------\n");
-    printf(" Switch : s\n"); 
-    printf(" Fork   : f\n");
-    printf(" Print  : p\n");
-    printf(" Sleep  : z\n");
-    printf(" Wake   : a\n");
-    printf(" Wait   : w\n");
-    printf(" Quit   : q\n");
-    printf("------------\n");
+    printf("=====================================================\n");
+    printf(" p : Print the pid, ppid, and status of all processes\n");
+    printf(" f : Fork a new child process\n");
+    printf(" s : Switch to another process \n"); 
+    printf(" z : Sleep until a specific event\n");
+    printf(" a : Wake all processes sleeping the event\n");
+    printf(" w : Wait for a zombie child process\n");
+    printf(" q : Kill the current process\n");
+    printf("=====================================================\n");
 }
 
 void initialize()
@@ -97,8 +97,12 @@ int body()
 
 int main()
 {
+    int value;
     color = 0xB3A;
-    printf("\nMTX starts in main()\n");
+    printf("MTX starts in main()\n");
+    printf("-----------------\n");
+    printf("Help Menu: h or ?\n");
+    printf("-----------------\n");
     initialize();      // initialize and create P0 as running
 
     kfork(); // P0 kfork() P1
@@ -109,7 +113,7 @@ int main()
     {
         if(readyQueue)
         {
-            printf("P0 switch process\n\n");
+            printf("P0 switch process");
             tswitch();   // P0 switch to run P1
             printf("P%d running\n", running->pid);
         }
@@ -127,7 +131,7 @@ PROC* kfork()
         return NULL;
     }
 
-    printf("P%d forks child P%d", running->pid, p->pid);
+    printf("P%d forks child P%d\n", running->pid, p->pid);
     p->status = READY;
     p->priority = 1;
     p->ppid = running->pid;
@@ -156,10 +160,15 @@ PROC* kfork()
 
 void scheduler()
 {
+    if(running->status == RUNNING)
+        running->status = READY;
+
     if (running->status == READY)
         enqueue(&readyQueue, running);
 
     running = dequeue(&readyQueue);
+    running->status = RUNNING;
+
     color = 0x000A + (running->pid % 6);
 }
 
@@ -197,7 +206,7 @@ void kexit(u16 exitValue)
     // Don't let it die unless it is just P0 and P1
     if(running->pid == proc[1].pid && count > 2)
     {
-        printf("\nP1 still has children and refuses to die!\n");
+        printf("\nP1 still has children and will never abandon them!");
         return;
     }
 
@@ -205,7 +214,7 @@ void kexit(u16 exitValue)
     if(running->parent->status == SLEEPING)
         kwakeup((int)running->parent);
 
-    printf("\nP%d stopped: Exit Value = %d\n\n", running->pid, exitValue);
+    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
     running->exitValue = exitValue;
     running->status = ZOMBIE;
     tswitch();

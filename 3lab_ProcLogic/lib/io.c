@@ -7,17 +7,26 @@
 char* gets(char str[])
 {
     while((*(str) = getc()) != '\r')
+    {
+        // So backspace behaves as expected
+        if(*str == '\b')
+        {
+            putc('\b');
+            putc(' ');
+        }
         putc(*str++); // So user can see what they're typing
+    }
 
     *str = '\0'; // Append with null char
     return str;
 }
 
-
 u16 geti()
 {
     char str[32];
-    return atoi(gets(str));
+    gets(str);
+
+    return atoi(str); // doesn't work with atoi(gets(str))
 }
 
 void rpu(u16 n, u16 base)

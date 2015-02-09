@@ -1,5 +1,6 @@
 #include "string.h"
 
+// Only accurate from -32768 to 32767
 int atoi(char* str)
 {
     int i;

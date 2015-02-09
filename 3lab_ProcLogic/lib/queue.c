@@ -61,7 +61,8 @@ PROC* event_dequeue(PROC** queue, int event)
         p = p->next;
 
     // No proc found 
-    if(!p) return NULL;
+    if(!p || p->next->event != event) 
+        return NULL;
 
     // p->next == removeMe
     removeMe = p->next;
