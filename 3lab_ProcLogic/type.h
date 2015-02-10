@@ -21,11 +21,12 @@ typedef enum { false, true } bool;
 
 typedef struct proc
 {
-    struct proc *next;   // for linked list
-    int*   ksp;          // saved sp; offset = 2 bytes
+    struct proc *next;   // for creating list/queue
+    int*   ksp;          // byte offset 2, saved stack pointer 
 
-    int    uss, usp;     // Add items at BYTE offset 4, 6, and
-    int    inkmode;      // inkmode at BYTE offset 8
+    int    uss;          // byte offset 4 
+    int    usp;          // byte offset 6
+    int    inkmode;      // byte offset 8  
 
     int    pid;          // process id
     int    ppid;         // parent pid 
@@ -36,7 +37,7 @@ typedef struct proc
 
     int    event;        // sleep event
     char   name[32];     // name string of proc
-    int    exitValue;
+    int    exitValue;    // cause of death
 
     int    kstack[SSIZE]; // SSIZE=1024 This process's stack
 }PROC;

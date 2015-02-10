@@ -1,5 +1,45 @@
                NOTES #5 Kernel & User Modes
 
+JJ
+--
+In user mode program, you try to do a syscall
+Before you do the syscall you do syscall(a,b,c,d)
+Pushes parameters in reverse order
+
+int80 automatically pushes upc, ucs, uflag to stack
+jumps to _int80h in kernel segment (.s file)
+_int80h pushes uax, ubx, ..., ds 
+_running points to running proc in kmode
+call _kcinth:
+    try to honor syscall
+    use get word to get a, get b, get c, ...
+    a is at usp location + (2 * 13)
+    b is at usp location + (2 * 14)
+    ...
+
+in assembly, return value is saved in ax aka uax register
+so put word usp + (2 * 8)
+you can do this in the c function
+
+in kcinth():
+
+    a = 0
+    getpid()
+    {
+        return running->pid;
+    }
+    put AX => on stack
+
+To return to Umode, assume proc did syscall
+so int80 was called from virtual address 0
+all resgisted in stack
+P1's (or U1?) segment is in segment 0x2000
+it occupies the whole 64kb area
+just after it is 0x3000
+
+toggle flag (first pushed to stack) on in Umode, off Kmode (or vice versa?)
+--
+
 1. Process Image:
    The execution image of a process consists of 3 (logical) segments:
 
@@ -256,8 +296,8 @@ USP = 6
 
         mov bx,_running  	! bx->PROC: ready to access running PROC
 
-        mov USS(bx),ss          ! save uSS  in proc.uss
-        mov USP(bx),sp          ! save uSP  in proc.usp
+        mov USS(bx),ss          ! save uSS in proc.uss
+        mov USP(bx),sp          ! save uSP in proc.usp
 
 ! change ES SS to K space segment 0x1000 
         mov  ax,ds              ! must mov segments this way!
@@ -265,7 +305,7 @@ USP = 6
         mov  ss,ax              ! SS is now KSS = 0x1000
 
 ! switch (running proc's) stack from U space to K space.
-        mov  sp,bx	        ! sp points at running proc
+        mov  sp,bx	            ! sp points at running proc
         add  sp,_procSize       ! sp -> HIGH END of running's kstack[]
 
 ! We are now completely in K space, and stack is running proc's (empty) kstack
@@ -273,6 +313,7 @@ USP = 6
 ! *************   CALL handler in C ******************************
 
         call  _kcinth           ! call kcinth() in C; 
+        !JJ: kernel mode, C code (not KC's initials)
 
 ! *************   RETURN TO U Mode ********************************
 _goUmode:
@@ -312,6 +353,8 @@ _goUmode:
    | uds,ues,udi,usi,ubp,udx,ucx,ubx,uax |upc,ucs,uflag|retPC, a, b, c, d |...
       0   1   2   3   4   5   6   7   8    9   10  11    12    13 14 15 16
      usp
+    
+JJ: int80 automatically saves upc ucs uflag on stack
 
    The segment of ustack is saved in proc.uss, and usp in proc.usp
 
