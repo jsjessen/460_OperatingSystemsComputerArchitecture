@@ -1,3 +1,3 @@
 #!/bin/sh
 
-wget -r http://www.eecs.wsu.edu/~cs460/samples/
+wget http://www.eecs.wsu.edu/~cs460/samples/$1
