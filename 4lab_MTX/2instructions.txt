@@ -1,6 +1,12 @@
                      460 LAB Assignment #4
                      DUE: Monday 2-23, 2015
 
+Download LAB4.help
+looking at ...  uPC uCS flag  0 = 64k in 16 bit mode (so wraps around like a circle)
+
+uDS, uES, uCS should all be set to segment
+
+
 1. OBJECTIVES:
    Kernel/User mode images and system calls
 
