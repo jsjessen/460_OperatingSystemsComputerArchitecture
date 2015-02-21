@@ -16,9 +16,9 @@ typedef unsigned long  u32;
 typedef struct proc{
     struct proc *next;
     int    *ksp;               // at offset 2
-  int    uss;                  // at offset 4
-  int    usp;                  // at offset 6
-  int    inkmode;
+
+    int    uss, usp;           // at offsets 4,6
+    int    inkmode;            // at offset 8
 
     int    pid;                // add pid for identify the proc
     int    status;             // status = FREE|READY|RUNNING|SLEEP|ZOMBIE    
