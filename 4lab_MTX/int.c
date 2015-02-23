@@ -1,55 +1,69 @@
+#include "type.h"
+#include "wait.c"
 
-/*************************************************************************
-  usp  1   2   3   4   5   6   7   8   9  10   11    12   13  14  15  16
-----------------------------------------------------------------------------
- |uds|ues|udi|usi|ubp|udx|ucx|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
-----------------------------------------------------------------------------
-***************************************************************************/
-#define PA 13
-#define PB 14
-#define PC 15
-#define PD 16
-#define AX  8
+// LOW                                                                       HIGH
+//     usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
+//    -------------------------------------------------------------------------
+//    |uds|ues|udi|usi|ubp|udx|ucx|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
+//    -------------------------------------------------------------------------
+// Offset = Position * Size, where Size = 2 bytes or 1 word 
+#define PA (13 * 2)
+#define PB (14 * 2)
+#define PC (15 * 2)
+#define PD (16 * 2)
+#define AX ( 8 * 2)
 
-/****************** syscall handler in C ***************************/
+// ****************** syscall handler in C ******************
 int kcinth()
 {
-   u16    segment, offset;
-   int    a,b,c,d, r;
-   segment = running->uss; 
-   offset = running->usp;
+    u16 segment, offset;
+    int a,b,c,d, result;
+    segment = running->uss; 
+    offset = running->usp;
 
-   /** get syscall parameters from ustack **/
-   a = get_word(segment, offset + 2*PA);
-   b = get_word(segment, offset + 2*PB);
-   c = get_word(segment, offset + 2*PC);
-   d = get_word(segment, offset + 2*PD);
+    // Get syscall parameters from Ustack
+    a = get_word(segment, offset + PA);
+    b = get_word(segment, offset + PB);
+    c = get_word(segment, offset + PC);
+    d = get_word(segment, offset + PD);
 
-   switch(a)
-   {
-       case 0 : r = running->pid;     break;
-       case 1 : r = kps();            break;
-       case 2 : r = kchname(b);       break;
-       case 3 : r = kkfork();         break;
-       case 4 : r = ktswitch();       break;
-       case 5 : r = kkwait(b);        break;
-       case 6 : r = kkexit(b);        break;
+    // Parameter 'a' is the syscall number
+    switch(a)
+    {
+        // Execute the desired action function
+        case 0 : result = kgetpid();    break;
+        case 1 : result = kps();        break;
+        case 2 : result = kchname(b);   break;
+        case 3 : result = kkfork();     break;
+        case 4 : result = ktswitch();   break;
+        case 5 : result = kkwait(b);    break;
+        case 6 : result = kkexit(b);    break;
 
-       case 90: r = getc();               break;
-       case 91: r = putc(b);              break;
+        case 90: result = getc();       break;
+        case 91: result = putc(b);      break;
 
-       case 99: kkexit(b);                break;
-       default: printf("invalid syscall # : %d\n", a); 
-   }
-   put_word(r, segment, offset + 2*AX);
+        case 99: result = kkexit(b);    break;
+        default: printf("invalid syscall # : %d\n", a); 
+    }
+    // Put action function return value in the AX register
+    // so that goUmode() can pop it off from Ustack
+    put_word(result, segment, offset + AX);
+    // return (int) value >= 0 for OK, or -1 for BAD.
 }
 
+// return the proc's pid
+int kgetpid()
+{
+    return running->pid;
+}
 
 //int color;
 extern PROC proc[];
 
 char *hh[ ] = {"FREE   ", "READY  ", "RUNNING", "STOPPED", "SLEEP  ", 
     "ZOMBIE ",  0}; 
+// enter Kerenl to print the status info of the procs
+// running proc's name to *s.
 int do_ps()
 {
     int i,j; 
@@ -60,16 +74,19 @@ int do_ps()
     printf("  name         status      pid       ppid  \n");
     printf("--------------------------------------------\n");
 
-    for (i=0; i<NPROC; i++){
+    for (i=0; i<NPROC; i++)
+    {
         strcpy(buf,"               ");
         p = proc[i].name;
         j = 0;
-        while (*p){
+        while(*p)
             buf[j] = *p; j++; p++;
-        }      
-        prints(buf);    prints(" ");
 
-        if (proc[i].status != FREE){
+        prints(buf);  
+        prints(" ");
+
+        if (proc[i].status != FREE)
+        {
             if (running==&proc[i])
                 prints("running");
             else
@@ -78,7 +95,8 @@ int do_ps()
             printd(proc[i].pid);  prints("        ");
             printd(proc[i].ppid);
         }
-        else{
+        else
+        {
             prints("FREE");
         }
         printf("\n");
@@ -88,6 +106,13 @@ int do_ps()
     return(0);
 }
 
+// Print PROC information
+int kps()
+{
+    return do_ps();
+}
+
+// Change running's name string
 #define NAMELEN 32
 int kchname(char * y)
 {
@@ -107,58 +132,41 @@ int kchname(char * y)
     printf("done\n");
 }
 
-int kps()
-{
-    return do_ps();
-}
-
+// enter Kernel to kfork a child with /bin/u1 as Umode image
+// return child pid or -1 
 int kkfork()
 {
     return do_kfork("/bin/u1");
 }
-
+// enter Kernel to switch process (call tswitch())
 int ktswitch()
 {
     return tswitch();
 }
 
-//============= WRITE C CODE FOR syscall functions ======================
+// enter Kernel to wait for a ZOMBIE child,
+// return its pid (or -1 if no child) and its exitValue
+int kkwait(int *status)
+{
+    return kwait(status);
+}
 
-//int kgetpid()
-//{
-//  WRITE YOUR C code
-//}
-//
-//int kpd()
-//{
-//    WRITE C code to print PROC information
-//}
-//
-//int kchname(char *name)
-//{
-//   WRITE C CODE to change running's name string;
-//}
-//
-//int kkfork()
-//{
-//  use you kfork() in kernel;
-//  return child pid or -1 to Umode!!!
-//}
-//
-//int ktswitch()
-//{
-//   return tswitch();
-//}
-//
-//int kkwait(int *status)
-//{
-//
-//  use YOUR kwait() in LAB3;
-//  return values to Umode!!!
-//}
-//
-//int kkexit(int value)
-//{
-//    use your kexit() in LAB3
-//    do NOT let P1 die
-//}
+// enter Kernel to die with an exitValue
+int kkexit(int value)
+{
+    // do NOT let P1 die
+    return kexit(value);
+}
+
+int getc()
+{
+    return 0;
+}
+
+int putc(char c)
+{
+    return 0;
+}
+
+        case 90: result = getc();       break;
+        case 91: result = putc(b);      break;

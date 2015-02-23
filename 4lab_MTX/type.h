@@ -13,6 +13,10 @@
 
 void tswitch(void);
 
+typedef unsigned char  u8;
+typedef unsigned short u16;
+typedef unsigned long  u32;
+
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
 char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
@@ -23,9 +27,9 @@ typedef struct proc
 {
     struct proc *next;   // for creating list/queue
 
-    int*   ksp;          // byte offset 2, saved stack pointer 
-    int    uss;          // byte offset 4 
-    int    usp;          // byte offset 6
+    int*   ksp;          // byte offset 2, Kmode stack pointer 
+    int    uss;          // byte offset 4, Umode stack segment 
+    int    usp;          // byte offset 6, Umode stack pointer
     int    inkmode;      // byte offset 8  
 
     int    pid;          // process id
@@ -36,7 +40,7 @@ typedef struct proc
     int    priority;     // scheduling priority
 
     int    event;        // sleep event
-    char   name[32];     // name string of proc
+    char   name[32];     // process name string
     int    exitValue;    // cause of death
 
     int    kstack[SSIZE]; // SSIZE=1024 this process's stack

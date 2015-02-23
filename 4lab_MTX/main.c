@@ -24,6 +24,15 @@ void help_menu()
     printf("=====================================================\n");
 }
 
+int int80h();
+
+int set_vec(vector, handler) u16 vector, handler;
+{
+     // put_word(word, segment, offset) in mtxlib
+     put_word(handler, 0, vector<<2);
+     put_word(0x1000,  0, (vector<<2) + 2);
+}
+
 void initialize()
 {
     int i;

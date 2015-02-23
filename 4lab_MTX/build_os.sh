@@ -2,12 +2,15 @@
 . ~/Documents/460_OperatingSystemsComputerArchitecture/fancy_output.sh 
 . lib/build_lib.sh 
 . boot/build_booter.sh
+. user/build_u1.sh
 
 boot_dir="boot"
 booter="booter"
 
 lib_dir="lib"
 lib="mylib.a"
+
+u1_dir="user"
 
 os="my_mtx"
 
@@ -19,6 +22,7 @@ vm="qemu-system-i386"
 if [ "$1" = "all" ]; then
     build_booter $boot_dir $booter
     build_lib $lib_dir $lib
+    build_u1 $u1_dir
 fi
 
 echo -n ${Cyan}
@@ -43,11 +47,18 @@ try "Linking OS object code..." \
 try "Dumping $booter to first block of ${my_image}..." \
     "dd if=$boot_dir/$booter of=$my_image bs=1024 count=1 conv=notrunc"
 
-try "Copying $os to $my_image/boot/${os}..." \
-    "sudo mount -o loop $my_image /mnt" \
-    "sudo cp $os /mnt/boot/$os" \
-    "sudo umount /mnt"
+try "Mounting ${my_image}..." \
+    "sudo mount -o loop $my_image /mnt"
 
+try "Copying $os to $my_image/boot/${os}..." \
+    "sudo cp $os /mnt/boot/$os" 
+
+try "Copying $u1 to $my_image/bin/${u1}..." \
+    "build_u1 $u1_dir $u1"
+
+try "Unmounting ${my_image}..." \
+    "sudo umount /mnt"
+    
 gold_echo "Attempting to boot $os from $my_image using ${vm}..."
 echo
 $vm -fda $my_image -no-fd-bootchk #-localtime -serial mon:stdio

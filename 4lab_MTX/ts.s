@@ -79,8 +79,8 @@ RESUME:
 ! added functions for KUMODE
 	.globl _int80h,_goUmode,_kcinth
 !These offsets are defined in struct proc
-USS =   4
-USP =   6
+USS = 4
+USP = 6
 
 _int80h:
         push ax                 ! save all Umode registers in ustack
@@ -91,30 +91,52 @@ _int80h:
         push si
         push di
         push es
-        push ds
+        push ds   
+!                      |by INT 80 =>|   by _int80h: ============>|
+!                   ---|-----------------------------------------------
+! ustack contains : ???|flag,uCS,uPC|ax,bx,cx,dx,bp,si,di,ues,uds|
+!                   -------------------------------------------|---- 
+!                                                              |
+!                                                             uSP
+        push cs                 ! push kCS (0x1000) 
+        pop  ds                 ! let DS=CS = 0x1000 (KDS now)
 
-! ustack contains : flag,uCS,uPC, ax,bx,cx,dx,bp,si,di,ues,uds
-        push cs
-        pop  ds                 ! KDS now
+! All variables are now relative to DS=0x1000 of Kernel space
+! save running proc's Umode uSS and uSP into its PROC 
 
-	    mov bx,_running  	    ! ready to access proc
-        mov USS[bx],ss          ! save uSS  in proc.USS
-        mov USP[bx],sp          ! save uSP  in proc.USP
+	    mov bx,_running  	    ! bx->PROC: ready to access running proc
 
-! Change ES,SS to kernel segment
-        mov  ax,ds              ! stupid !!        
+        mov USS[bx],ss          ! save uSS in proc.USS
+        mov USP[bx],sp          ! save uSP in proc.USP
+
+! change ES SS to kernel segment 0x1000 
+        mov  ax,ds              ! must mov segments this way!
         mov  es,ax              ! CS=DS=SS=ES in Kmode
-        mov  ss,ax
+        mov  ss,ax              ! SS is now KSS = 0x1000
 
-! set sp to HI end of running's kstack[]
-	    mov  sp,_running        ! proc's kstack [2 KB]
-        add  sp,_procSize       ! HI end of PROC
+! switch (running proc's) stack from U space to K space.
+	    mov  sp,_running        ! sp points at running proc (proc's kstack [2 KB])
+        add  sp,_procSize       ! sp -> HIGH END of running's kstack[]
 
-        call  _kcinth
+! We are now completely in K space, and stack is running proc's (empty) kstack
+
+! *************   CALL handler in C ******************************
+
+        call  _kcinth           ! call kcinth() in int.c
+                                ! kc = Kmode code
+
+! *************   RETURN TO U Mode ********************************
+
         jmp   _goUmode
   
+!=============================================================================
+! The assembly function goUmode() restores Umode stack, then restores Umode
+! registers, followed by an IRET, causing the process to return to Umode.
+!
+! These assembly functions are keys to understanding Umode/Kmode transitions. 
+!*****************************************************************************
 _goUmode:
-        cli
+        cli                     ! mask out interrupts
 	    mov bx,_running 	    ! bx -> proc
         mov ax,USS[bx]
         mov ss,ax               ! restore uSS
