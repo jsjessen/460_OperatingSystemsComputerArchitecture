@@ -122,3 +122,43 @@ int ktswitch()
     return tswitch();
 }
 
+//============= WRITE C CODE FOR syscall functions ======================
+
+//int kgetpid()
+//{
+//  WRITE YOUR C code
+//}
+//
+//int kpd()
+//{
+//    WRITE C code to print PROC information
+//}
+//
+//int kchname(char *name)
+//{
+//   WRITE C CODE to change running's name string;
+//}
+//
+//int kkfork()
+//{
+//  use you kfork() in kernel;
+//  return child pid or -1 to Umode!!!
+//}
+//
+//int ktswitch()
+//{
+//   return tswitch();
+//}
+//
+//int kkwait(int *status)
+//{
+//
+//  use YOUR kwait() in LAB3;
+//  return values to Umode!!!
+//}
+//
+//int kkexit(int value)
+//{
+//    use your kexit() in LAB3
+//    do NOT let P1 die
+//}

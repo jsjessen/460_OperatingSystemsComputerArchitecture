@@ -6,25 +6,31 @@ build_booter()
     dir=$1
     booter=$2
 
+    echo -n ${Cyan}
+    echo ========================================== 
+    echo BOOTER
+    echo ------------------------------------------
+    echo -n ${NC}
+
     try "Compiling booter assembly code..." \
-        "as86 -o $dir/bs.o $dir/bs.s"
+        "as86 -o $dir/obj/bs.o $dir/bs.s"
 
     try "Compiling booter C code..." \
-        "bcc -o $dir/main.o -c -ansi $dir/main.c"
+        "bcc -o $dir/obj/main.o -c -ansi $dir/main.c"
 
     try "Linking booter object code..." \
-        "ld86 -o $dir/$booter -d $dir/bs.o $dir/main.o /usr/lib/bcc/libc.a"
+        "ld86 -o $dir/$booter -d $dir/obj/bs.o $dir/obj/main.o /usr/lib/bcc/libc.a"
 
     gold_echo "Verifying booter is within size limit..." \ 
     size=$(stat -c %s $dir/$booter)
     if test $size -le 1024; 
     then
-        echo ${LightGreen}OK
+        echo -n ${LightGreen}
         echo --------------------------------
         echo Booter is slim by `expr 1024 - $size` bytes 
         echo --------------------------------${NC}
     else
-        echo ${LightRed}FAIL
+        echo -n ${LightRed}
         echo --------------------------------
         echo Reduce booter size by `expr $size - 1024` bytes 
         echo --------------------------------${NC}

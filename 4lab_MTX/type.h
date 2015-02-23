@@ -48,5 +48,7 @@ int procSize = sizeof(PROC);
 int nproc = 0; 
 int color;
 
+char *pname[] = { "Sun", "Mercury", "Venus", "Earth",  "Mars", 
+                  "Jupiter", "Saturn", "Uranus", "Neptune" };
 
 #endif

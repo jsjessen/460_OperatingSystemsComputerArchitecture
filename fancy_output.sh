@@ -1,6 +1,6 @@
 #!/bin/sh
 
-debug=0
+debug=1
 
 Black='\033[0;30m'    
 DarkGray='\033[1;30m'
@@ -22,7 +22,7 @@ NC='\033[0m' # No Color
 
 gold_echo()
 {
-    echo -n "${Gold}$1${NC}"
+    echo "${Gold}$1${NC}"
 }
 
 try()
@@ -32,19 +32,19 @@ try()
     shift
     for COMMAND in "$@"
     do
-
         if [ $debug -ne 0 ]; then
-            echo "${Cyan}"
+            echo -n ${LightRed}
             $COMMAND
+            echo -n ${NC}
         else
             $COMMAND 2> /dev/null
         fi
 
         if [ $? -ne 0 ]; then
-            echo "${LightRed}FAILED${NC}"
+            #echo "${LightRed}FAILED${NC}"
             exit 1
         fi
     done
 
-    echo "${LightGreen}OK${NC}"
+    #echo "${LightGreen}OK${NC}"
 }
