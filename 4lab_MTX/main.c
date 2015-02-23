@@ -2,14 +2,28 @@
 #include "lib/io.h"
 #include "lib/queue.h"
 #include "lib/list.h"
+#include "lib/transfer.h"
+
+#define UFLAG -1
+#define UCS   -2
+#define UES   -11
+#define UDS   -12
 
 void initialize(void);
 int body(void);  
-PROC* kfork(void);
+PROC *kfork(char *filename);
 void kexit(u16 exitValue);
 
 #include "wait.c"
 #include "kernel.c"
+#include "int.c"
+
+void set_vec(u16 vector, u16 handler)
+{
+     //      (word, segment, offset)
+     put_word(handler, 0x0000,  vector << 2);      // set PC = _int80h
+     put_word(0x1000,  0x0000, (vector << 2) + 2); // set CS = 0x1000
+}
 
 void help_menu()
 {
@@ -24,14 +38,6 @@ void help_menu()
     printf("=====================================================\n");
 }
 
-int int80h();
-
-int set_vec(vector, handler) u16 vector, handler;
-{
-     // put_word(word, segment, offset) in mtxlib
-     put_word(handler, 0, vector<<2);
-     put_word(0x1000,  0, (vector<<2) + 2);
-}
 
 void initialize()
 {
@@ -64,6 +70,7 @@ void initialize()
     running->parent = &proc[0]; // Parent = self, no parent
 
     readyQueue = NULL;
+    set_vec(80, int80h);
 
     printf("ok\n"); 
 }
@@ -98,6 +105,7 @@ int body()
             case 'z' : do_sleep();     break; 
             case 'a' : do_wakeup();    break; 
             case 'w' : do_wait();      break;
+            case 'u' : goUmode();      break;
 
             default  : printf("Unrecognized Command\n");
         }
@@ -114,7 +122,8 @@ int main()
     printf("-----------------\n");
     initialize(); // initialize and create P0 as running
 
-    kfork(); // P0 kfork() P1
+    kfork("/bin/u1");  // P0 kfork() P1
+
     printQueue("readyQueue", readyQueue);
     printf("P%d running\n", running->pid);
 
@@ -129,41 +138,96 @@ int main()
     }
 }
 
-PROC* kfork()
+/***********************************************************
+  kfork() creates a child proc and returns the child pid.
+  When scheduled to run, the child process resumes to body();
+************************************************************/
+PROC* kfork(char *filename)
 {
-    int i;
-    PROC* p = delist(&freeList); // get a first proc from freeList
+    PROC* p;
+    int i, size;
+    u16 segment;
 
-    if(!p)
+    // get a first proc from freeList for child process
+    if((p = delist(&freeList)) == NULL) 
     {
         printf("Cannot fork because there are no free processes.\n");
-        return NULL;
+        return (PROC*)FAILURE;
     }
 
-    printf("P%d forks child P%d\n", running->pid, p->pid);
+    // initialize new process and its stack
     p->status = READY;
     p->priority = 1;
     p->ppid = running->pid;
     p->parent = running;
 
-    //    INITIALIZE p's kstack to make it start from body() when it runs.
-
-    //    To do this, PRETEND that the process called tswitch() from the 
-    //    the entry address of body() and executed the SAVE part of tswitch()
-    //    to give up CPU before. 
-    //    Initialize its kstack[ ] and ksp to comform to these.
-
     //  Each proc's kstack contains:
     //  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
 
-    for (i = 1; i < NUM_REG + 1; i++) // start at 1 becuase first array index is 0
-        p->kstack[SSIZE - i] = 0;         // all saved registers = 0
+    // clear all saved registers on Kstack
+    for (i = 1; i < NUM_KREG + 1; i++) // start at 1 becuase first array index is 0
+        p->kstack[SSIZE - i] = 0;     // all saved registers = 0
 
-    // Empty stack, so ksp points at very bottom of stack
-    p->kstack[SSIZE - 1] = (int)body; // called tswitch() from body, set rPC
-    p->ksp = &(p->kstack[SSIZE - 9]); // ksp -> kstack top
+
+    p->kstack[SSIZE - 1] = (int)body;       // Set rPC so it resumes from body() 
+    p->ksp = &(p->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
 
     enqueue(&readyQueue, p);
+    nproc++;
+
+    if(filename)
+    {
+        segment = 0x1000 * (p->pid + 1);  // new PROC's segment
+        load(filename, segment);          // load file to LOW END of segment
+
+        //       new PROC
+        //        ------
+        //        |uss | = new PROC's SEGMENT value
+        //        |usp | = -24                                    
+        //        --|---                                    Assume P1 in segment=0x2000:
+        //          |                                              0x30000  
+        //          |                                              HIGH END of segment
+        //  (LOW) | |   ----- by SAVE in int80h ----- | by INT 80  |
+        //  --------|-------------------------------------------------------------
+        //        |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
+        //  ----------------------------------------------------------------------
+        //         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
+        //
+        size = 2; // 2 bytes or 1 word
+
+        // SETUP new PROC's ustack for it to return to Umode to execute filename;
+
+        // write 0's to ALL of them
+        for(i = 1; i <= NUM_UREG; i++)       
+            put_word(0, segment, -i * size);
+
+        put_word(0x0200, segment, UFLAG * size); // Set flag I bit-1 to allow interrupts 
+
+        // Conform to one-segment model
+        put_word(segment, segment, UCS * size); // Set Umode code  segment 
+        put_word(segment, segment, UES * size); // Set Umode extra segment 
+        put_word(segment, segment, UDS * size); // Set Umode data  segment
+
+        // execution from uCS segment, uPC offset
+        // (segment, 0) = u1's beginning address
+
+        // initial USP relative to USS
+        p->usp = -NUM_UREG * size;  // Top of Ustack (per INT 80)
+        p->uss = segment;
+
+        // When the new PROC execute goUmode in assembly, it does:
+        //
+        //       restore CPU's ss by PROC.uss ===> segment
+        //       restore CPU's sp by PROC.usp ===> sp = usp in the above diagram.
+        //
+        //       pop registers ===> DS, ES = segment
+        //
+        //       iret ============> (CS,PC)=(segment, 0) = u1's beginning address.
+    }
+
+    printf("P%d kforked child P%d at segment=%x\n",
+            running->pid, p->pid, segment);
+
     return p;
 }         
 

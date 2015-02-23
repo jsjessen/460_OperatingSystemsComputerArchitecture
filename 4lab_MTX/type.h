@@ -8,9 +8,12 @@
 #define NULL      0
 
 #define NPROC     9        
-#define NUM_REG   9
+#define NUM_KREG  9
+#define NUM_UREG 12 
 #define SSIZE  1024                // kstack int size
 
+// Imported from ts.s
+int int80h();
 void tswitch(void);
 
 typedef unsigned char  u8;
@@ -20,7 +23,7 @@ typedef unsigned long  u32;
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
 char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
-typedef enum { FAILURE, SUCCESS } result_t;
+typedef enum { FAILURE=-1, SUCCESS=0 } result_t;
 typedef enum { false, true } bool;
 
 typedef struct proc

@@ -120,7 +120,7 @@ In your main() function:
   --------|-------------------------------------------------------------
         |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
   ----------------------------------------------------------------------
-         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
+        -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1  |
 
 Use put_word(w, segment, offset) to set the ustack contents to contain:
 

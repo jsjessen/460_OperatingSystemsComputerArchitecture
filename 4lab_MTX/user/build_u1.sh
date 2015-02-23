@@ -18,5 +18,5 @@ build_u1()
         "as86 -o $dir/obj/u.o $dir/u.s"
 
     try "Linking booter object code..." \
-        "ld86 -o $dir/u1 $dir/obj/u.o $dir/obj/u1.o ../lib/mylib.a /usr/lib/bcc/libc.a"
+        "ld86 -o $dir/u1 $dir/obj/u.o $dir/obj/u1.o lib/mylib.a /usr/lib/bcc/libc.a"
 }

@@ -1,8 +1,9 @@
-//#include "ucode.c"
-//int color;
+#include "ucode.c"
+int color;
 main()
 { 
     printf("I am in Umode, segment=%x\n", getcs());
+    while(1);
 
 //  char name[64]; int pid, cmd;
 //

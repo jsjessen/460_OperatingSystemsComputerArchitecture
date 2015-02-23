@@ -6,14 +6,11 @@
 
 #include <stdarg.h>
 #include "string.h"
+#include "../type.h"
 
 #define OCT 8
 #define DEC 10
 #define HEX 16
-
-typedef unsigned char  u8;
-typedef unsigned short u16;
-typedef unsigned long  u32;
 
 // Imported from ts.s 
 char getc(void);

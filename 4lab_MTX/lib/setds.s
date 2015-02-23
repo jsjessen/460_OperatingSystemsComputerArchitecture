@@ -1,7 +1,7 @@
         .globl _setds   ! EXPORT
 
         !---------------------------------------------
-        !  void setds(u16 segment)   function: set CPU's DS register to segment value 
+        !  void setds(u16 segment)   function: Set data segment 
         !---------------------------------------------
 _setds:
 	push bp			
@@ -9,4 +9,3 @@ _setds:
 	mov  ds,4[bp]		! load ds with segment value
 	pop  bp
 	ret
-	
