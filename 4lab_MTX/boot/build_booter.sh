@@ -12,6 +12,8 @@ build_booter()
     echo ------------------------------------------
     echo -n ${NC}
 
+mkdir -p -- "$dir/obj"
+
     try "Compiling booter assembly code..." \
         "as86 -o $dir/obj/bs.o $dir/bs.s"
 

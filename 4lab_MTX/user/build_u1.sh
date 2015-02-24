@@ -11,6 +11,8 @@ build_u1()
     echo ------------------------------------------
     echo -n ${NC}
 
+mkdir -p -- "$dir/obj"
+
     try "Compiling booter C code..." \
         "bcc -o $dir/obj/u1.o -c -ansi $dir/u1.c"
 

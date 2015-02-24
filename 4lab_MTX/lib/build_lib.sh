@@ -12,6 +12,8 @@ build_lib()
     echo ------------------------------------------
     echo -n ${NC}
 
+mkdir -p -- "$dir/obj"
+
     try "Compiling getc..." \
         "as86 -o $dir/obj/getc.o $dir/getc.s" 
 

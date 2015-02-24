@@ -31,6 +31,8 @@ echo OPERATING SYSTEM
 echo ------------------------------------------
 echo -n ${NC}
 
+mkdir -p -- "obj"
+
 try "Replacing $my_image with a fresh copy of ${kc_image}..." \
     "rm -f $my_image" \
     "cp $kc_image $my_image"
@@ -58,7 +60,7 @@ try "Copying u1 to $my_image/bin/u1..." \
 
 try "Unmounting ${my_image}..." \
     "sudo umount /mnt"
-    
+
 gold_echo "Attempting to boot $os from $my_image using ${vm}..."
 echo
 $vm -fda $my_image -no-fd-bootchk #-localtime -serial mon:stdio
