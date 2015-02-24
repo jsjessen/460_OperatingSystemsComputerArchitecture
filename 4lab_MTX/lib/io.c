@@ -13,6 +13,9 @@ char* gets(char str[])
         {
             putc('\b');
             putc(' ');
+            putc('\b');
+            *(--str) = '\0';
+            continue;
         }
         putc(*str++); // So user can see what they're typing
     }

@@ -8,7 +8,7 @@ int atoi(char* str)
     int len = strlen(str);
 
     for(i = len; i > 0; i--) 
-        value += (str[len - i] - '0') * (int)pow(10, i - 1);
+        value += (str[len - i] - '0') * int_pow(10, i - 1);
 
     return value;
 }

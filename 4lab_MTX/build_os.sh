@@ -22,6 +22,7 @@ vm="qemu-system-i386"
 if [ "$1" = "all" ]; then
     build_booter $boot_dir $booter
     build_lib $lib_dir $lib
+    build_u1 $u1_dir
 fi
 
 echo -n ${Cyan}
@@ -52,8 +53,8 @@ try "Mounting ${my_image}..." \
 try "Copying $os to $my_image/boot/${os}..." \
     "sudo cp $os /mnt/boot/$os" 
 
-#try "Copying $u1 to $my_image/bin/${u1}..." \
-#    "build_u1 $u1_dir"
+try "Copying u1 to $my_image/bin/u1..." \
+    "sudo cp user/u1 /mnt/bin/u1" 
 
 try "Unmounting ${my_image}..." \
     "sudo umount /mnt"

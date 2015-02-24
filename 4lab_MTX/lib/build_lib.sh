@@ -42,13 +42,21 @@ build_lib()
     try "Building library $dir/${lib}..." \
         "rm -f $dir/$lib" \
         "ar cr $dir/$lib  
-               $dir/obj/getc.o $dir/obj/putc.o $dir/obj/setds.o
-               $dir/obj/math.o $dir/obj/string.o $dir/obj/io.o
-               $dir/obj/queue.o $dir/obj/list.o
+               $dir/obj/getc.o 
+               $dir/obj/putc.o 
+               $dir/obj/setds.o
+               $dir/obj/math.o 
+               $dir/obj/string.o 
+               $dir/obj/io.o
+               $dir/obj/queue.o 
+               $dir/obj/list.o
                $dir/obj/transfer.o"
 
     # Temporarily using KC's loader.o until I can create my own
     try "Adding KC loader to library..." \
         "ar r $dir/$lib $dir/kclib_obj/loader.o"
+
+    try "Adding KC diskio to library..." \
+        "ar r $dir/$lib $dir/kclib_obj/diskio.o"
 }
 

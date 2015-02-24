@@ -1,6 +1,16 @@
 #include "lib/io.h"
 #include "type.h"
 
+extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
+extern int tswitch(void); // does it return an int?
+extern int color;
+
+extern void ksleep(int event);
+extern void kwakeup(int event);
+extern int kwait(int* status);
+extern void kexit(u16 exitValue);
+extern PROC *kfork(char* filename);
+
 void do_tswitch() // s
 {
     printf("P%d tswitch()", running->pid);
@@ -8,10 +18,10 @@ void do_tswitch() // s
     printf("\n\nP%d resumes", running->pid);
 }
 
-void do_kfork() // f
+void do_kfork(char* filename) // f
 {
     PROC *p;
-    p = (PROC*)kfork();
+    p = (PROC*)kfork(filename);
 }
 
 void do_exit() // q
@@ -51,27 +61,4 @@ void do_wait() // w
 
     if(pid >= 0)
         printf("\n\nP%d finds zombie child P%d with exit status %x and resumes", running->pid, pid, status);
-}
-
-// p : print pid, ppid and status of ALL PROCs
-void do_ps()
-{
-    int i;
-    PROC* p;
-
-    printf("======================================\n");
-    printf("  Name       Status     PID     PPID  \n");
-    printf("--------------------------------------\n");
-
-    for (i = 0; i < NPROC; i++)
-    {
-        p = &proc[i];
-
-        if(p->status == FREE)
-            printf("             %s\n", states[p->status]);
-        else
-            printf("  %s           %s    %d       %d   \n", 
-                    p->name, states[p->status], p->pid, p->ppid);
-    }
-    printf("======================================\n");
 }

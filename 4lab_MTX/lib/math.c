@@ -1,6 +1,6 @@
 #include "math.h"
 
-float pow(float base, int power)
+int int_pow(int base, int power)
 {
     int i;
     int result = base;
@@ -9,7 +9,7 @@ float pow(float base, int power)
         result *= base;
 
     if(power < 0)
-        return 1 / result;
+        return -1; 
     if(power == 0)
         return 1;
     if(power > 0)

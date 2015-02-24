@@ -5,7 +5,7 @@
 #define __MATH_H__
 
 
-float pow(float base, int power);
+int int_pow(int base, int power);
 
 
 #endif

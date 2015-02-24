@@ -4,15 +4,31 @@
 #include "lib/list.h"
 #include "lib/transfer.h"
 
+#define NUM_KREG  9
+#define NUM_UREG 12 
+
 #define UFLAG -1
 #define UCS   -2
 #define UES   -11
 #define UDS   -12
 
+// Imported from ts.s
+int int80h();
+int tswitch(void); // does it return an int?
+
 void initialize(void);
 int body(void);  
-PROC *kfork(char *filename);
+PROC *kfork(char* filename);
 void kexit(u16 exitValue);
+
+PROC proc[NPROC], *running, *freeList, *sleepList, *readyQueue;
+
+int procSize = sizeof(PROC);
+int nproc = 0; 
+int color;
+
+char *pname[] = { "Sun", "Mercury", "Venus", "Earth",  "Mars", 
+                  "Jupiter", "Saturn", "Uranus", "Neptune" };
 
 #include "wait.c"
 #include "kernel.c"
@@ -28,6 +44,7 @@ void set_vec(u16 vector, u16 handler)
 void help_menu()
 {
     printf("=====================================================\n");
+    printf(" u : Enter user mode\n"); 
     printf(" p : Print the pid, ppid, and status of all processes\n");
     printf(" f : Fork a new child process\n");
     printf(" s : Switch to another process \n"); 
@@ -59,7 +76,7 @@ void initialize()
         p->status = FREE;
         p->priority = 0;
         p->event = 0;
-        p->name[0] = '\0';
+        strcpy(p->name, pname[i]);
         p->exitValue = 0;
     }
     p->next = NULL;
@@ -99,14 +116,14 @@ int body()
             case 'h' : help_menu();    break;
 
             case 's' : do_tswitch();   break;
-            case 'f' : do_kfork();     break;
-            case 'q' : do_exit();      break; 
+            case 'f' : do_kfork("/bin/u1");     break;
             case 'p' : do_ps();        break; 
             case 'z' : do_sleep();     break; 
             case 'a' : do_wakeup();    break; 
             case 'w' : do_wait();      break;
             case 'u' : goUmode();      break;
 
+            case 'q' : do_exit();      break; 
             default  : printf("Unrecognized Command\n");
         }
     }
@@ -142,7 +159,7 @@ int main()
   kfork() creates a child proc and returns the child pid.
   When scheduled to run, the child process resumes to body();
 ************************************************************/
-PROC* kfork(char *filename)
+PROC* kfork(char* filename)
 {
     PROC* p;
     int i, size;

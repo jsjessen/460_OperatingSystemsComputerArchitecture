@@ -1,5 +1,9 @@
 #include "type.h"
-#include "wait.c"
+
+extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
+extern int color;
+
+char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
 // LOW                                                                       HIGH
 //     usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
@@ -39,8 +43,8 @@ int kcinth()
         case 5 : result = kkwait(b);    break;
         case 6 : result = kkexit(b);    break;
 
-        case 90: result = getc();       break;
-        case 91: result = putc(b);      break;
+        case 90: result = kgetc();    break;
+        case 91: result = kputc(b);   break;
 
         case 99: result = kkexit(b);    break;
         default: printf("invalid syscall # : %d\n", a); 
@@ -57,72 +61,59 @@ int kgetpid()
     return running->pid;
 }
 
-//int color;
-extern PROC proc[];
-
-char *hh[ ] = {"FREE   ", "READY  ", "RUNNING", "STOPPED", "SLEEP  ", 
-    "ZOMBIE ",  0}; 
-// enter Kerenl to print the status info of the procs
-// running proc's name to *s.
-int do_ps()
+// p : print pid, ppid and status of ALL PROCs
+void do_ps()
 {
-    int i,j; 
-    char *p, *q, buf[16];
+    int i,j;
+    PROC* p;
+    char *cp, buf[16];
     buf[15] = 0;
 
-    printf("============================================\n");
-    printf("  name         status      pid       ppid  \n");
-    printf("--------------------------------------------\n");
+    printf("\n===========================================\n");
+    printf("  Name            Status     PID     PPID  \n");
+    printf("-------------------------------------------\n");
 
-    for (i=0; i<NPROC; i++)
+    for (i = 0; i < NPROC; i++)
     {
+        p = &proc[i];
+
         strcpy(buf,"               ");
-        p = proc[i].name;
-        j = 0;
-        while(*p)
-            buf[j] = *p; j++; p++;
-
-        prints(buf);  
-        prints(" ");
-
-        if (proc[i].status != FREE)
+        if(p->name)
         {
-            if (running==&proc[i])
-                prints("running");
-            else
-                prints(hh[proc[i].status]);
-            prints("     ");
-            printd(proc[i].pid);  prints("        ");
-            printd(proc[i].ppid);
+            cp = p->name;
+            j = 0;
+            while(*cp)
+                buf[j++] = *(cp++);
         }
+
+        if(p->status == FREE)
+            printf("  %s %s\n", buf, states[p->status]);
         else
-        {
-            prints("FREE");
-        }
-        printf("\n");
+            printf("  %s %s    %d       %d   \n", 
+                    buf, states[p->status], p->pid, p->ppid);
     }
-    printf("---------------------------------------------\n");
-
-    return(0);
+    printf("===========================================\n");
 }
 
 // Print PROC information
 int kps()
 {
-    return do_ps();
+    do_ps();
+    return 0;
 }
 
 // Change running's name string
 #define NAMELEN 32
-int kchname(char * y)
+int kchname(char* y)
 {
     char buf[64];
     char *cp = buf;
     int count = 0; 
 
-    while (count < NAMELEN){
+    while (count < NAMELEN)
+    {
         *cp = get_byte(running->uss, y);
-        if (*cp == 0) break;
+        if(*cp == 0) break;
         cp++; y++; count++;
     }
     buf[31] = 0;
@@ -158,15 +149,12 @@ int kkexit(int value)
     return kexit(value);
 }
 
-int getc()
+int kgetc()
 {
-    return 0;
+    return getc();
 }
 
-int putc(char c)
+int kputc(char c)
 {
-    return 0;
+    return putc(c);
 }
-
-        case 90: result = getc();       break;
-        case 91: result = putc(b);      break;
