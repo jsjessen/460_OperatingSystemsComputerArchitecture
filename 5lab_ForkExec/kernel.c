@@ -1,64 +1,144 @@
-#include "lib/io.h"
-#include "type.h"
+#include "kernel.h"
 
-extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
-extern int tswitch(void); // does it return an int?
-extern int color;
+#define NUM_KREG  9
+#define NUM_UREG 12 
 
-extern void ksleep(int event);
-extern void kwakeup(int event);
-extern int kwait(int* status);
-extern void kexit(u16 exitValue);
-extern PROC *kfork(char* filename);
+#define UFLAG -1
+#define UCS   -2
+#define UES   -11
+#define UDS   -12
 
-void do_tswitch() // s
+/***********************************************************
+  kfork() creates a child proc and returns the child pid.
+  When scheduled to run, the child process resumes to body();
+************************************************************/
+PROC* kfork(char* filename)
 {
-    printf("P%d tswitch()", running->pid);
-    tswitch();
-    printf("\n\nP%d resumes", running->pid);
-}
+    PROC* p;
+    int i, size;
+    u16 segment;
 
-void do_kfork(char* filename) // f
-{
-    PROC *p;
-    p = (PROC*)kfork(filename);
-}
-
-void do_exit() // q
-{
-    printf("Enter exit value: ");
-    kexit(geti());
-}
-
-void do_sleep() // z
-{
-    int event = 0;
-    while(event <= 0)
+    // get a first proc from freeList for child process
+    if((p = delist(&freeList)) == NULL) 
     {
-        printf("Enter event value to sleep on: ");
-        event = geti();
-
-        if(event <= 0)
-            printf("\nEvent value must be greater than zero\n\n");
+        printf("Cannot fork because there are no free processes.\n");
+        return (PROC*)FAILURE;
     }
 
-    ksleep(event);
-}
+    // initialize new process and its stack
+    p->status = READY;
+    p->priority = 1;
+    p->ppid = running->pid;
+    p->parent = running;
 
-// wakeup ALL PROCs sleeping on event
-void do_wakeup() // a
+    //  Each proc's kstack contains:
+    //  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
+
+    // clear all saved registers on Kstack
+    for (i = 1; i < NUM_KREG + 1; i++) // start at 1 becuase first array index is 0
+        p->kstack[SSIZE - i] = 0;     // all saved registers = 0
+
+
+    p->kstack[SSIZE - 1] = (int)body;       // Set rPC so it resumes from body() 
+    p->ksp = &(p->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
+
+    enqueue(&readyQueue, p);
+    nproc++;
+
+    if(filename)
+    {
+        segment = 0x1000 * (p->pid + 1);  // new PROC's segment
+        load(filename, segment);          // load file to LOW END of segment
+
+        //       new PROC
+        //        ------
+        //        |uss | = new PROC's SEGMENT value
+        //        |usp | = -24                                    
+        //        --|---                                    Assume P1 in segment=0x2000:
+        //          |                                              0x30000  
+        //          |                                              HIGH END of segment
+        //  (LOW) | |   ----- by SAVE in int80h ----- | by INT 80  |
+        //  --------|-------------------------------------------------------------
+        //        |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
+        //  ----------------------------------------------------------------------
+        //         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
+        //
+        size = 2; // 2 bytes or 1 word
+
+        // SETUP new PROC's ustack for it to return to Umode to execute filename;
+
+        // write 0's to ALL of them
+        for(i = 1; i <= NUM_UREG; i++)       
+            put_word(0, segment, -i * size);
+
+        put_word(0x0200, segment, UFLAG * size); // Set flag I bit-1 to allow interrupts 
+
+        // Conform to one-segment model
+        put_word(segment, segment, UCS * size); // Set Umode code  segment 
+        put_word(segment, segment, UES * size); // Set Umode extra segment 
+        put_word(segment, segment, UDS * size); // Set Umode data  segment
+
+        // execution from uCS segment, uPC offset
+        // (segment, 0) = u1's beginning address
+
+        // initial USP relative to USS
+        p->usp = -NUM_UREG * size;  // Top of Ustack (per INT 80)
+        p->uss = segment;
+
+        // When the new PROC execute goUmode in assembly, it does:
+        //
+        //       restore CPU's ss by PROC.uss ===> segment
+        //       restore CPU's sp by PROC.usp ===> sp = usp in the above diagram.
+        //
+        //       pop registers ===> DS, ES = segment
+        //
+        //       iret ============> (CS,PC)=(segment, 0) = u1's beginning address.
+    }
+
+    printf("P%d kforked child P%d at segment=%x\n",
+            running->pid, p->pid, segment);
+
+    return p;
+}         
+
+int kexit(u16 exitValue)
 {
-    printf("Enter an event value to wakeup: ");
-    kwakeup(geti());
-}
+    int i;
+    int count = 0;
+    PROC *p;
 
-// to wait for a ZOMBIE child
-void do_wait() // w
-{
-    int pid, status;
-    printf("P%d waits for a child process to die", running->pid); 
-    pid = kwait(&status);
+    // Look for children
+    for (i = 0; i < NPROC; i++)
+    {
+        p = &proc[i];
 
-    if(pid >= 0)
-        printf("\n\nP%d finds zombie child P%d with exit status %x and resumes", running->pid, pid, status);
-}
+        // Count active procs while your at it
+        if(p->status != ZOMBIE && p->status != FREE)
+            count++;
+
+        // Give any orphans to P1
+        if(p->ppid == running->pid)
+            p->ppid = proc[1].pid;
+    }
+
+    // If the dying process is P1
+    // Don't let it die unless it is just P0 and P1
+    if(running->pid == proc[1].pid && count > 2)
+    {
+        printf("\nP1 still has children and will never abandon them!\n");
+        return FAILURE;
+    }
+
+    running->exitValue = exitValue;
+    running->status = ZOMBIE;
+    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
+
+    // If parent is sleeping, wake parent 
+    if(running->parent->status == SLEEPING)
+        kwakeup((int)running->parent);
+
+    // Give up CPU 
+    tswitch();
+    printf("\nI AM BACK FROM THE DEAD\n");
+    return SUCCESS;
+} 

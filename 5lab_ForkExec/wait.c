@@ -1,14 +1,4 @@
-#include "type.h"
-#include "lib/queue.h" 
-#include "lib/list.h" 
-
-extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
-extern int tswitch(void); // does it return an int?
-extern int color;
-
-void ksleep(int event);
-void kwakeup(int event);
-int kwait(int* status);
+#include "kernel.h"
 
 // running PROC to sleep on an event value
 void ksleep(int event)

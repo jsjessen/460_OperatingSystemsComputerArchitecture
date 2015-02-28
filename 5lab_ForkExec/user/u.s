@@ -1,5 +1,5 @@
-        .globl _main,_syscall,_exit      ! IMPORT
-        .globl _getcs                    ! EXPORT
+        .globl _main,_exit      ! IMPORT
+        .globl _getcs,_syscall  ! EXPORT
 
         call _main
 	

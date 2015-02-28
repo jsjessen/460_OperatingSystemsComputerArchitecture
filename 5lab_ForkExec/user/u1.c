@@ -1,4 +1,5 @@
-#include "ucode.c"
+#include "user.h"
+
 int color;
 main()
 { 

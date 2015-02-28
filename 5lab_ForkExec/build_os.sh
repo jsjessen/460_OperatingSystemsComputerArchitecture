@@ -41,10 +41,13 @@ try "Compiling OS assembly code..." \
     "as86 -o obj/ts.o ts.s"
 
 try "Compiling OS C code..." \
-    "bcc -o obj/${os}.o -c -ansi main.c"
+    "bcc -o obj/${os}.o -c -ansi main.c" \
+    "bcc -o obj/wait.o -c -ansi wait.c" \
+    "bcc -o obj/vkernel.o -c -ansi vkernel.c" \
+    "bcc -o obj/kernel.o -c -ansi kernel.c"
 
 try "Linking OS object code..." \
-    "ld86 -o $os -d obj/ts.o obj/${os}.o $lib_dir/$lib /usr/lib/bcc/libc.a"
+    "ld86 -o $os -d obj/ts.o obj/wait.o obj/vkernel.o obj/kernel.o obj/${os}.o $lib_dir/$lib /usr/lib/bcc/libc.a"
 
 try "Dumping $booter to first block of ${my_image}..." \
     "dd if=$boot_dir/$booter of=$my_image bs=1024 count=1 conv=notrunc"

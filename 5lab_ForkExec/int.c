@@ -1,9 +1,4 @@
-#include "type.h"
-
-extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
-extern int color;
-
-char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
+#include "kernel.h"
 
 // LOW                                                                       HIGH
 //     usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
@@ -35,19 +30,22 @@ int kcinth()
     switch(a)
     {
         // Execute the desired action function
-        case 0 : result = kgetpid();    break;
-        case 1 : result = kps();        break;
-        case 2 : result = kchname(b);   break;
-        case 3 : result = kkfork();     break;
-        case 4 : result = ktswitch();   break;
-        case 5 : result = kkwait(b);    break;
-        case 6 : result = kkexit(b);    break;
+        case 0 : result = kgetpid();            break;
+        case 1 : result = kps();                break;
+        case 2 : result = kchname((char*)b);    break;
+        case 3 : result = kkfork();             break;
+        case 4 : result = ktswitch();           break;
+        case 5 : result = kkwait((int*)b);      break;
+        case 6 : result = kkexit(b);            break;
 
-        case 90: result = kgetc();    break;
-        case 91: result = kputc(b);   break;
+        case 90: result = kgetc();              break;
+        case 91: result = kputc((char)b);       break;
 
-        case 99: result = kkexit(b);    break;
-        default: printf("invalid syscall # : %d\n", a); 
+        case 99: result = kkexit(b);            break;
+
+        default: 
+                 printf("invalid syscall # : %d\n", a); 
+                 result = FAILURE;
     }
     // Put action function return value in the AX register
     // so that goUmode() can pop it off from Ustack
@@ -61,39 +59,6 @@ int kgetpid()
     return running->pid;
 }
 
-// p : print pid, ppid and status of ALL PROCs
-void do_ps()
-{
-    int i,j;
-    PROC* p;
-    char *cp, buf[16];
-    buf[15] = 0;
-
-    printf("\n===========================================\n");
-    printf("  Name            Status     PID     PPID  \n");
-    printf("-------------------------------------------\n");
-
-    for (i = 0; i < NPROC; i++)
-    {
-        p = &proc[i];
-
-        strcpy(buf,"               ");
-        if(p->name)
-        {
-            cp = p->name;
-            j = 0;
-            while(*cp)
-                buf[j++] = *(cp++);
-        }
-
-        if(p->status == FREE)
-            printf("  %s %s\n", buf, states[p->status]);
-        else
-            printf("  %s %s    %d       %d   \n", 
-                    buf, states[p->status], p->pid, p->ppid);
-    }
-    printf("===========================================\n");
-}
 
 // Print PROC information
 int kps()
@@ -112,7 +77,7 @@ int kchname(char* y)
 
     while (count < NAMELEN)
     {
-        *cp = get_byte(running->uss, y);
+        *cp = get_byte(running->uss, (u16)y);
         if(*cp == 0) break;
         cp++; y++; count++;
     }
@@ -121,6 +86,7 @@ int kchname(char* y)
     printf("changing name of proc %d to %s\n", running->pid, buf);
     strcpy(running->name, buf); 
     printf("done\n");
+    return SUCCESS;
 }
 
 // enter Kernel to kfork a child with /bin/u1 as Umode image

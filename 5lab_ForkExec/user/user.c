@@ -1,8 +1,6 @@
-// ucode.c file
+#include "user.h"
 
 char *cmd[]={"getpid", "ps", "chname", "kfork", "switch", "wait", "exit", 0};
-
-#define LEN 64
 
 int show_menu()
 {
@@ -68,7 +66,7 @@ int wait()
     printf("\n"); 
 } 
 
-int geti()
+int geti_()
 {
   char s[16];
   return atoi(gets(s));
@@ -90,12 +88,12 @@ int _exit(int exitValue)
 }
 
 
-int getc()
+int getc_()
 {
   return syscall(90,0,0) & 0x7F;
 }
 
-int putc(char c)
+int putc_(char c)
 {
   return syscall(91,c,0,0);
 }

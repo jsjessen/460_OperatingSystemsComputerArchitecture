@@ -13,12 +13,13 @@ build_u1()
 
 mkdir -p -- "$dir/obj"
 
-    try "Compiling booter C code..." \
+    try "Compiling user C code..." \
+        "bcc -o $dir/obj/user.o -c -ansi $dir/user.c" \
         "bcc -o $dir/obj/u1.o -c -ansi $dir/u1.c"
 
-    try "Compiling booter assembly code..." \
+    try "Compiling user assembly code..." \
         "as86 -o $dir/obj/u.o $dir/u.s"
 
-    try "Linking booter object code..." \
-        "ld86 -o $dir/u1 $dir/obj/u.o $dir/obj/u1.o lib/mylib.a /usr/lib/bcc/libc.a"
+    try "Linking user object code..." \
+        "ld86 -o $dir/u1 $dir/obj/u.o $dir/obj/user.o $dir/obj/u1.o lib/mylib.a /usr/lib/bcc/libc.a"
 }
