@@ -1,1 +1,5 @@
-build_os.sh
+#!/bin/bash
+
+make clean
+make
+make run
