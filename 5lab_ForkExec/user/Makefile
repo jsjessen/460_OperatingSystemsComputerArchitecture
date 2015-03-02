@@ -22,7 +22,8 @@ SC = as86
 SFLAGS =
 
 LINK = ld86
-LFLAGS = /usr/lib/bcc/libc.a -d
+LFLAGS = /usr/lib/bcc/libc.a 
+#Note: including the -d flag makes transition to Umode fail
 
 LIB = ../lib/mylib.a
 

@@ -4,6 +4,8 @@ main()
 { 
   char name[64]; int pid, cmd;
 
+  printf("ENTERING U1\n");
+
   while(1)
   {
     pid = getpid();
