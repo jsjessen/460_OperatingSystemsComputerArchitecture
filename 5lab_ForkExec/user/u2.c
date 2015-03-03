@@ -8,12 +8,13 @@ main()
   while(1)
   {
     pid = getpid();
-    color = 0x000A + (pid % 6); 
+
+    color = 0x0C;
        
     printf("\n----------------------------------------------\n");
-    printf("I am proc %d in U mode: running segment=%x\n",getpid(), getcs());
+    printf("I AM PROC %d IN U MODE: RUNNING SEGMENT=%x\n",getpid(), getcs()); 
     show_menu();
-    printf("Command ? ");
+    printf("COMMAND ? ");
     gets(name); 
     printf("\n");
     if (name[0]==0) 

@@ -1,12 +1,9 @@
 #include "kernel.h"
 
-#define NUM_KREG  9
-#define NUM_UREG 12 
-
-#define UFLAG -1
-#define UCS   -2
-#define UES   -11
-#define UDS   -12
+#define UFLAG (-1  * WORD_SIZE) // Flag
+#define UCS   (-2  * WORD_SIZE) // Code Segment
+#define UES   (-11 * WORD_SIZE) // Extra Segment
+#define UDS   (-12 * WORD_SIZE) // Data Segment
 
 /***********************************************************
   kfork() creates a child proc and returns the child pid.
@@ -14,8 +11,8 @@
 ************************************************************/
 PROC* kfork(char* filename)
 {
+    int i;
     PROC* p;
-    int i, size;
     u16 segment;
 
     // get a first proc from freeList for child process
@@ -39,7 +36,7 @@ PROC* kfork(char* filename)
         p->kstack[SSIZE - i] = 0;     // all saved registers = 0
 
 
-    p->kstack[SSIZE - 1] = (int)body;       // Set rPC so it resumes from body() 
+    p->kstack[SSIZE - 1] = (int)goUmode;     // Set rPC so it resumes from body() 
     p->ksp = &(p->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
 
     enqueue(&readyQueue, p);
@@ -63,26 +60,25 @@ PROC* kfork(char* filename)
         //  ----------------------------------------------------------------------
         //         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
         //
-        size = 2; // 2 bytes or 1 word
 
         // SETUP new PROC's ustack for it to return to Umode to execute filename;
 
         // write 0's to ALL of them
         for(i = 1; i <= NUM_UREG; i++)       
-            put_word(0, segment, -i * size);
+            put_word(0, segment, -i * WORD_SIZE);
 
-        put_word(0x0200, segment, UFLAG * size); // Set flag I bit-1 to allow interrupts 
+        put_word(0x0200, segment, UFLAG); // Set flag I bit-1 to allow interrupts 
 
         // Conform to one-segment model
-        put_word(segment, segment, UCS * size); // Set Umode code  segment 
-        put_word(segment, segment, UES * size); // Set Umode extra segment 
-        put_word(segment, segment, UDS * size); // Set Umode data  segment
+        put_word(segment, segment, UCS); // Set Umode code  segment 
+        put_word(segment, segment, UES); // Set Umode extra segment 
+        put_word(segment, segment, UDS); // Set Umode data  segment
 
         // execution from uCS segment, uPC offset
         // (segment, 0) = u1's beginning address
 
         // initial USP relative to USS
-        p->usp = -NUM_UREG * size;  // Top of Ustack (per INT 80)
+        p->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
         p->uss = segment;
 
         // When the new PROC execute goUmode in assembly, it does:

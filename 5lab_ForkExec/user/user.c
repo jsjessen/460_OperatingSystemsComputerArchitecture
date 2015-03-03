@@ -1,12 +1,25 @@
 #include "user.h"
 
-char *cmd[]={"getpid", "ps", "chname", "kfork", "switch", "wait", "exit", 0};
+char *cmd[]=
+{
+    "getpid", 
+    "ps", 
+    "chname", 
+    "kfork", 
+    "switch", 
+    "wait", 
+    "exit", 
+    "fork", 
+    "exec", 
+    0
+};
 
 int show_menu()
 {
-   printf("***************** Menu *******************\n");
-   printf("*  ps  chname  kfork  switch  wait  exit *\n");
-   printf("******************************************\n");
+   printf("********************** Menu ************************\n");
+   printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
+   printf("****************************************************\n");
+   return SUCCESS;
 }
 
 int find_cmd(char *name)
@@ -14,13 +27,14 @@ int find_cmd(char *name)
    int i=0;   
    char *p=cmd[0];
 
-   while (p){
-         if (strcmp(p, name)==0)
+   while(p)
+   {
+         if (strcmp(p, name) == 0)
             return i;
-         i++;  
+         i++; 
          p = cmd[i];
    } 
-   return(-1);
+   return FAILURE;
 }
 
 int getpid()
@@ -30,7 +44,7 @@ int getpid()
 
 int ps()
 {
-   syscall(1, 0, 0);
+   return syscall(1, 0, 0);
 }
 
 int chname()
@@ -38,7 +52,7 @@ int chname()
     char s[64];
     printf("input new name : ");
     gets(s);
-    syscall(2, s, 0);
+    return syscall(2, s, 0);
 }
 
 int kfork()
@@ -48,6 +62,7 @@ int kfork()
   printf("proc %d enter kernel to kfork a child\n", pid); 
   child = syscall(3, 0, 0);
   printf("proc %d kforked a child %d\n", pid, child);
+  return child;
 }    
 
 int kswitch()
@@ -64,6 +79,7 @@ int wait()
     if (child>=0)
         printf("exitValue=%d", exitValue);
     printf("\n"); 
+    return SUCCESS;
 } 
 
 int geti_()
@@ -79,21 +95,21 @@ int exit()
    exitValue = geti();
    printf("exitvalue=%d\n", exitValue);
    printf("enter kernel to die with exitValue=%d\n", exitValue);
-   _exit(exitValue);
+   return _exit(exitValue);
 }
 
 int _exit(int exitValue)
 {
-  syscall(6,exitValue,0);
+  return syscall(6,exitValue,0);
 }
 
 
-int getc_()
+int _getc()
 {
   return syscall(90,0,0) & 0x7F;
 }
 
-int putc_(char c)
+int _putc(char c)
 {
   return syscall(91,c,0,0);
 }
@@ -101,4 +117,30 @@ int putc_(char c)
 int invalid(char *name)
 {
     printf("Invalid command : %s\n", name);
+    return FAILURE;
+}
+
+int fork()
+{
+    int pid;
+    if((pid = syscall(7,0,0)) < 0)
+    {
+        printf("Fork Failed\n");
+        return FAILURE;
+    }
+
+    if(pid)
+        printf("parent return from fork, child=%d\n", pid); 
+    else
+        printf("child return from fork, child=%d\n", pid);
+
+    return pid;
+}
+
+int exec()
+{
+    char filename[64];
+    printf("input new name : ");
+    gets(filename);
+    return syscall(8, filename, 0);
 }

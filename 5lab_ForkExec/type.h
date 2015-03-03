@@ -11,6 +11,9 @@ typedef unsigned char  u8;
 typedef unsigned short u16;
 typedef unsigned long  u32;
 
+typedef enum { FAILURE=-1, SUCCESS=0 } result_t;
+typedef enum { false, true } bool;
+
 typedef struct proc
 {
     struct proc *next;   // for creating list/queue

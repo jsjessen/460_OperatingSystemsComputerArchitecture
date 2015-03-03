@@ -1,7 +1,8 @@
 ################################################################
 ## Makefile for the KERNEL of James' MTX Operating System
 ################################################################
-USER = u1 
+USER1 = u1 
+USER2 = u2 
 SHELL := /bin/bash
 
 ################################################################
@@ -29,19 +30,25 @@ LIB = ../lib/mylib.a
 
 OBJ_DIR  = obj
 
-OBJECTS = u.o user.o u1.o  
+OBJECTS = u.o user.o u1.o u2.o
 
 ################################################################
 ## User Compilation 
 ################################################################
 
-all: | $(OBJ_DIR) $(USER) 
+all: | $(OBJ_DIR) $(USER1) $(USER2)
 
 $(OBJ_DIR):
 	@mkdir -p -- $@
 
 # Temporarily using KC's loader.o & diskio.o until I can create my own
-$(USER): $(addprefix $(OBJ_DIR)/, $(OBJECTS)) $(LIB)
+$(USER1): $(addprefix $(OBJ_DIR)/, $(OBJECTS)) $(LIB)
+	@echo -e "$(LINK) $^ $(LFLAGS) -o $@"
+	@echo -ne "$(ERROR_COLOR)"
+	@$(LINK) $^ $(LFLAGS) -o $@
+	@echo -ne "$(NO_COLOR)"
+
+$(USER2): $(addprefix $(OBJ_DIR)/, $(OBJECTS)) $(LIB)
 	@echo -e "$(LINK) $^ $(LFLAGS) -o $@"
 	@echo -ne "$(ERROR_COLOR)"
 	@$(LINK) $^ $(LFLAGS) -o $@
@@ -65,10 +72,16 @@ $(OBJ_DIR)/u1.o: u1.c user.h
 	@$(CC) $(CFLAGS) $< -o $@
 	@echo -ne "$(NO_COLOR)"
 
+$(OBJ_DIR)/u2.o: u2.c user.h
+	@echo -e "$(CC) $(CFLAGS) $< -o $@"
+	@echo -ne "$(ERROR_COLOR)"
+	@$(CC) $(CFLAGS) $< -o $@
+	@echo -ne "$(NO_COLOR)"
+
 ################################################################
 ## Commands 
 ################################################################
 
 clean:
-	@rm -f $(USER) $(OBJ_DIR)/*.o
+	@rm -f $(USER1) $(USER2) $(OBJ_DIR)/*.o
 	@echo -e "$(WARN_COLOR)User Clean$(NO_COLOR)"

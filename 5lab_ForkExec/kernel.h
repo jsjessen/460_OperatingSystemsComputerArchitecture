@@ -18,9 +18,12 @@
 
 #define NPROC 9        
 
+#define NUM_KREG  9
+#define NUM_UREG 12 
+
+#define WORD_SIZE 2
+
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
-typedef enum { FAILURE=-1, SUCCESS=0 } result_t;
-typedef enum { false, true } bool;
 
 extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
 extern char* states[];
@@ -60,13 +63,15 @@ void do_wait();
 int kcinth();
 int kgetpid();
 int kps();
-int kchname(char* y);
+int kchname(char* name);
 int kkfork();
 int ktswitch();
 int kkwait(int *status);
 int kkexit(int value);
 int kgetc();
 int kputc(char c);
+int fork();
+int exec(char* filename);
 
 
 #endif

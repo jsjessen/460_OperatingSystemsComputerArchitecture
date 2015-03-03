@@ -51,7 +51,7 @@ OBJECTS = ts.o wait.o kernel.o vkernel.o int.o main.o
 ## File Preperations
 ################################################################
 
-all: $(OBJ_DIR) $(KC_IMAGE) | $(BOOTER) $(USER) printOS $(OS) 
+all: $(OBJ_DIR) $(KC_IMAGE) $(BOOTER) $(USER) | printOS $(OS) 
 	@echo -e "$(WARN_COLOR)Replacing $(MY_IMAGE) \
 	with a fresh copy of $(KC_IMAGE)...$(NO_COLOR)"
 	rm -f $(MY_IMAGE)
@@ -66,6 +66,7 @@ all: $(OBJ_DIR) $(KC_IMAGE) | $(BOOTER) $(USER) printOS $(OS)
 	sudo mount -o loop $(MY_IMAGE) /mnt
 	sudo cp $(OS) /mnt/boot/$(OS)
 	sudo cp user/u1 /mnt/bin/u1 
+	sudo cp user/u2 /mnt/bin/u2 
 	sudo umount /mnt
 
 $(OBJ_DIR):

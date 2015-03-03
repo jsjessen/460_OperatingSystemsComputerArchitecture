@@ -17,8 +17,14 @@
 
 extern char *cmd[];
 
+// u.s
+int getcs();
+int syscall(int num, ...);
+
 int show_menu();
 int find_cmd(char *name);
+
+// syscalls
 int getpid();
 int ps();
 int chname();
@@ -27,12 +33,12 @@ int kswitch();
 int wait();
 int geti_(); // lib or this?
 int exit();
-;
-// syscalls;
 int _exit(int exitValue);
-int getc_();
-int putc_(char c);
-;
+int _getc();
+int _putc(char c);
+int fork();
+int exec();
+
 int invalid(char *name);
 
 #endif
