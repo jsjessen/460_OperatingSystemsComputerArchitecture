@@ -1,0 +1,103 @@
+               CS460 Takehome MID TERM EXAM
+     DUE : March 6, 2015, DEMO your work to KCW in class
+-------------------------------------------------------------------------------
+1. LAB3:
+
+(1). Given: The tswitch() function in assembly (ts.s file) is changed to
+
+_tswitch:
+SAVE:	
+	push bp
+	pushf
+	push ds
+	push ss
+	push es
+	
+	mov  bx,_running
+	mov  2[bx],sp
+
+FIND:	call _scheduler
+
+_resume:	
+RESUME:
+        WRITE YOUR OWN assembly code for the RESUME part.
+
+(2). With this new tswitch(), re-write YOUR kfork() function, i.e.
+     FOCUS ON HOW TO INITIALIZE the kstack of a new process.
+
+(3). With the above modifications, compile and run your NEW LAB3.
+
+------------------------------------------------------------------------------
+2. LAB4.help File: your LAB4 should be working by this help posting.
+
+(1). Assume: int80h() is changed to 
+
+!These offsets are defined in struct proc
+USS =   4
+USP =   6
+_int80h:
+        push ax                 ! save SOME Umode registers in ustack
+        push bx
+        push bp
+        push es
+        push ds
+
+! ustack contains : flag,uCS,uPC, ax,bp,ues,uds
+        push cs
+        pop  ds                 ! KDS now
+
+	mov bx,_running  	! ready to access proc
+        mov USS[bx],ss          ! save uSS  in proc.USS
+        mov USP[bx],sp          ! save uSP  in proc.USP
+
+! Change ES,SS to kernel segment
+        mov  ax,ds              ! stupid !!        
+        mov  es,ax              ! CS=DS=SS=ES in Kmode
+        mov  ss,ax
+
+! set sp to HI end of running's kstack[]
+	mov  sp,_running        ! proc's kstack [2 KB]
+        add  sp,_procSize       ! HI end of PROC
+
+        call  _kcinth
+        jmp   _goUmode
+  
+_goUmode:
+        cli
+	mov bx,_running 	! bx -> proc
+        mov ax,USS[bx]
+        mov ss,ax               ! restore uSS
+        mov sp,USP[bx]          ! restore uSP
+  
+	pop ds
+	pop es
+        pop bp
+        pop bx
+        pop ax             
+	
+        iret
+-------------------------------------------------------------------------
+MODIFY YOUR kfork(char *filename) to initialize the new proc's USTACK for it
+to return to Umode.
+
+(2). In LAB4.help, each proc's Umode image is a 64KB segment at (pid+1)*0x1000.
+
+ CAHNGE THIS TO:   each proc's Umode image is a 32KB segment at (pid+1)*0x1000.
+
+ Modify YOUR kfork() accordingly. Re-compile and run the new MTX.
+
+
+(3). Implement a int getMyname(char myname[64]) syscall (call# = 12), which
+     gets running proc's name in myname[ ] and return the length of the
+     name string.
+-----------------------------------------------------------------------------
+3. Assume: P1 is a Casanova process, which hops not from bed to bed but from
+segment to segment! P1 begins to run "/bin/u1" in the segment 0x2000. 
+By a syscall hop(u32 newsegment), it hops to an IDNETICAL image in a newsegment.
+
+   Implement the hop(u32 newsegment) syscall.
+
+   Demonstrate that your P1 can hop from segment to segment.
+
+
+  
