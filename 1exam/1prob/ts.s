@@ -48,37 +48,52 @@ dead:	jmp dead                        ! loop if main() ever returns
 
 KSP = 2
 
-_tswitch:                            ! _tswitch:
-SAVE:	                             ! SAVE:	
- 	    push bp                      ! 	    push ax
- 	    pushf                        ! 	    push bx
- 	    push ds                      ! 	    push cx
- 	    push ss                      ! 	    push dx
- 	    push es                      ! 	    push bp
-                                     ! 	    push si
-                                     ! 	    push di
-  	                                 ! 	    pushf
-  	    mov  bx,_running             ! 	    mov  bx,_running
-  	    mov  2[bx],sp                ! 	    mov  2[bx],sp
-                                     ! 
-FIND:	call _scheduler              ! FIND: call _scheduler
-                        
+_tswitch:                      ! _tswitch:
+SAVE:	                       ! SAVE:	!Note: rPC has been pushed
+ 	    push bp                ! 	    push ax
+ 	    pushf                  ! 	    push bx
+ 	    push ds                ! 	    push cx
+ 	    push ss                ! 	    push dx
+ 	    push es                ! 	    push bp
+                               ! 	    push si
+                               ! 	    push di
+  	                           ! 	    pushf
+  	    mov  bx,_running       ! 	    mov  bx,_running    ! bx -> proc
+  	    mov  2[bx],sp          ! 	    mov  2[bx],sp       ! save sp to proc.ksp
+                               ! 
+FIND:	call _scheduler        ! FIND: call _scheduler      ! call scheduler() in C
          	           
+!    ksp
+!  ---|------------------------------
+!  | es | ss | ds | flag | bp | rPC |
+!  ------------------------------|---
+!    -6   -5   -4    -3    -2  kstack[SSIZE-1]
+
 ! *** Exam (1) ***
-_resume:                             ! _resume: 
-RESUME:                              ! RESUME:
-        mov  bx,_running             ! 	    mov  bx,_running
-        mov  sp,KSP[bx]              ! 	    mov  sp,2[bx]
-        pop  es                      ! 	    popf
-        pop  ss                      ! 	    pop  di
-        pop  ds                      ! 	    pop  si
-        popf                         ! 	    pop  bp
-        pop  bp                      ! 	    pop  dx
-                                     ! 	    pop  cx
-        mov ax,2[bp]                 ! 	    pop  bx
-        mov bx,4[bp]                 ! 	    pop  ax
-        mov cx,6[bp]                 ! 
-        mov dx,8[bp]                 !      ret
-       !mov bp,10[bp]
-        mov si,12[bp]
-        mov di,14[bp]
+_resume:                       ! _resume: 
+RESUME:                        ! RESUME:
+        mov  bx,_running       ! 	    mov  bx,_running    ! bx -> running
+        mov  sp,2[bx]          ! 	    mov  sp,2[bx]       ! sp = proc.ksp
+        pop  es                ! 	    popf
+        pop  ss                ! 	    pop  di
+        pop  ds                ! 	    pop  si
+        popf                   ! 	    pop  bp
+        pop  bp                ! 	    pop  dx
+                               ! 	    pop  cx                                   
+        ret                    ! 	    pop  bx                                   
+                               ! 	    pop  ax                                   
+        !mov ax,0              !                                                   
+        !mov bx,0              !        ret                 ! now sp points at rPC 
+        !mov cx,0              
+        !mov dx,0
+        !mov si,0
+        !mov di,0
+        !ret                   
+       !mov ax,2[bp]           
+       !mov bx,4[bp]           
+       !mov cx,6[bp]           
+       !mov dx,8[bp]           
+      !!mov bp,10[bp]
+       !mov si,12[bp]
+       !mov di,14[bp]
+       ! ret

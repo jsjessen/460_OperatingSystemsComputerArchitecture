@@ -144,15 +144,24 @@ PROC* kfork()
     //    to give up CPU before. 
     //    Initialize its kstack[ ] and ksp to comform to these.
 
-    //  Each proc's kstack contains:
-    //  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
+    //    ksp
+    //  ---|------------------------------
+    //  | es | ss | ds | flag | bp | rPC |
+    //  ------------------------------|---
+    //    -6   -5   -4    -3    -2  kstack[SSIZE-1]
+
+#define NUM_REG 6
 
     for (i = 1; i < NUM_REG + 1; i++) // start at 1 becuase first array index is 0
-        p->kstack[SSIZE - i] = 0;         // all saved registers = 0
+         p->kstack[SSIZE - i] = 0;         // all saved registers = 0
 
-    // Empty stack, so ksp points at very bottom of stack
     p->kstack[SSIZE - 1] = (int)body; // called tswitch() from body, set rPC
-    p->ksp = &(p->kstack[SSIZE - 9]); // ksp -> kstack top
+    p->kstack[SSIZE - 2] = 0; // set stack frame (body is infinite loop, 0 ok) 
+    p->kstack[SSIZE - 3] = 0; // set flag 
+    p->kstack[SSIZE - 4] = 0x1000; // set Data Segment 
+    p->kstack[SSIZE - 5] = 0x1000; // set Stack Segment 
+    p->kstack[SSIZE - 6] = 0x1000; // set Extra Segment 
+    p->ksp = &(p->kstack[SSIZE - NUM_REG]); // ksp -> kstack top
 
     enqueue(&readyQueue, p);
     return p;

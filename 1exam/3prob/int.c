@@ -1,21 +1,24 @@
 #include "type.h"
 
+int goUmode();
+
+#define WORD_SIZE 2
 extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
 extern int color;
 
 char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
-// LOW                                                         HIGH
-//     usp  1   2   3   4   5   6    7     8    9   10  11  12  
-//    ---------------------------------------------------------
-//    |uds|ues|ubp|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
-//    ---------------------------------------------------------
-//    Offset = Position * Size, where Size = 2 bytes or 1 word 
-#define PA ( 9 * 2)
-#define PB (10 * 2)
-#define PC (11 * 2)
-#define PD (12 * 2)
-#define AX ( 4 * 2)
+// LOW                                                                       HIGH
+//     usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
+//    -------------------------------------------------------------------------
+//    |uds|ues|udi|usi|ubp|udx|ucx|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
+//    -------------------------------------------------------------------------
+// Offset = Position * Size, where Size = 2 bytes or 1 word 
+#define PA (13 * 2)
+#define PB (14 * 2)
+#define PC (15 * 2)
+#define PD (16 * 2)
+#define AX ( 8 * 2)
 
 // ****************** syscall handler in C ******************
 int kcinth()
@@ -43,10 +46,10 @@ int kcinth()
         case 5 : result = kkwait(b);    break;
         case 6 : result = kkexit(b);    break;
 
-        case 12: result = getMyname(b); break;
+        case 7 : result = hop(b);       break;
 
-        case 90: result = kgetc();      break;
-        case 91: result = kputc(b);     break;
+        case 90: result = kgetc();    break;
+        case 91: result = kputc(b);   break;
 
         case 99: result = kkexit(b);    break;
         default: printf("invalid syscall # : %d\n", a); 
@@ -55,6 +58,63 @@ int kcinth()
     // so that goUmode() can pop it off from Ustack
     put_word(result, segment, offset + AX);
     // return (int) value >= 0 for OK, or -1 for BAD.
+}
+
+// copy running segment to a child's segment
+// A u16 can store values from 0 to 65,535 
+// because it can store 2^16 different values
+// so 0 to (2^16)-1
+int copy_image(int child_segment)
+{
+    int i;
+    u16 word;
+
+    // A segment is 64kb
+    //for(i = 0; i < (64 / WORD_SIZE) * 1024; i++)
+    for(i = 0; i < 32768; i++)
+    {
+        // Consider assuming get/put word is not so simple
+        // try using only get/put byte because it was made by KC
+        word = get_word(running->uss, i * WORD_SIZE);
+        put_word(word, child_segment, i * WORD_SIZE);
+    }
+    return SUCCESS;
+}
+
+int hop(u32 newsegment)
+{
+    int i;
+    u16 segment;
+
+    printf("Hopping to segment: %d\n", newsegment);
+
+    // Determine running's segment
+    segment = 0x1000 * (newsegment + 1);
+
+    copy_image(segment);
+    
+    // Important: change this AFTER copying
+    running->uss = segment;
+
+    //                              Parent (running)
+    // ========================== P1's image in 0x2000 ============================
+    // 
+    // 0x2000                   |       int80h             |  INT 80  |syscall(7,0,0)
+    // ----------------------------------------------------|--------------------------
+    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|0|xxxx| 
+    // --------------------------|-----------------------------------------------|----
+    //                          usp                                              usp
+    // P1's PROC.uss=0x2000      |             DS,ES,CS = 0x2000
+    //           usp= ------------         
+
+    // Need to use putword to set DS, ES, CS to the new segment 
+    // so things don't get messed up when change to Umode
+    // Conform to one-segment model
+    put_word(segment, segment, running->usp + 0); // Set Umode data  segment
+    put_word(segment, segment, running->usp + 1); // Set Umode extra segment 
+    put_word(segment, segment, running->usp + 10); // Set Umode code  segment 
+
+    return newsegment;
 }
 
 // return the proc's pid
@@ -112,7 +172,7 @@ int kchname(char* y)
     char *cp = buf;
     int count = 0; 
 
-    while(count < NAMELEN)
+    while (count < NAMELEN)
     {
         *cp = get_byte(running->uss, y);
         if(*cp == 0) break;
@@ -123,21 +183,6 @@ int kchname(char* y)
     printf("changing name of proc %d to %s\n", running->pid, buf);
     strcpy(running->name, buf); 
     printf("done\n");
-}
-
-int getMyname(char myname[64])
-{
-    char* name = running->name;
-    int count = 0; 
-
-    while(count < 64)
-    {
-        put_byte(*name, running->uss, myname + count);
-        if(*name == '\0') break;
-        name++; count++;
-    }
-
-    return count;
 }
 
 // enter Kernel to kfork a child with /bin/u1 as Umode image

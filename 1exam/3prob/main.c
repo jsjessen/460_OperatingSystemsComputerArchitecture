@@ -4,7 +4,13 @@
 #include "lib/list.h"
 #include "lib/transfer.h"
 
-#define NUM_KREG 9
+#define NUM_KREG  9
+#define NUM_UREG 12 
+
+#define UFLAG -1
+#define UCS   -2
+#define UES   -11
+#define UDS   -12
 
 // Imported from ts.s
 int int80h();
@@ -155,8 +161,8 @@ int main()
 ************************************************************/
 PROC* kfork(char* filename)
 {
-    int i;
     PROC* p;
+    int i, size;
     u16 segment;
 
     // get a first proc from freeList for child process
@@ -179,6 +185,7 @@ PROC* kfork(char* filename)
     for (i = 1; i < NUM_KREG + 1; i++) // start at 1 becuase first array index is 0
         p->kstack[SSIZE - i] = 0;     // all saved registers = 0
 
+
     p->kstack[SSIZE - 1] = (int)body;       // Set rPC so it resumes from body() 
     p->ksp = &(p->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
 
@@ -190,8 +197,6 @@ PROC* kfork(char* filename)
         segment = 0x1000 * (p->pid + 1);  // new PROC's segment
         load(filename, segment);          // load file to LOW END of segment
 
-        // SETUP new PROC's ustack for it to return to Umode to execute filename;
-        
         //       new PROC
         //        ------
         //        |uss | = new PROC's SEGMENT value
@@ -204,37 +209,27 @@ PROC* kfork(char* filename)
         //        |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
         //  ----------------------------------------------------------------------
         //         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
+        //
+        size = 2; // 2 bytes or 1 word
 
-        //   uSP
-        // ---|--------------------------------------------------------
-        // | uDS | uES | bp | bx | ax | uPC | uCS | flag | NEXT SEGMENT 
-        // ------------------------------------------------------------
-        //    -8    -7   -6   -5   -4    -3    -2    -1
-
-#define NUM_UREG 8 
-#define REG_SIZE 2
-
-#define UFLAG -1
-#define UCS   -2
-#define UES   -7
-#define UDS   -8
+        // SETUP new PROC's ustack for it to return to Umode to execute filename;
 
         // write 0's to ALL of them
         for(i = 1; i <= NUM_UREG; i++)       
-            put_word(0, segment, -i * REG_SIZE);
+            put_word(0, segment, -i * size);
 
-        put_word(0x0200, segment, UFLAG * REG_SIZE); // Set flag I bit-1 to allow interrupts 
+        put_word(0x0200, segment, UFLAG * size); // Set flag I bit-1 to allow interrupts 
 
         // Conform to one-segment model
-        put_word(segment, segment, UCS * REG_SIZE); // Set Umode code  segment 
-        put_word(segment, segment, UES * REG_SIZE); // Set Umode extra segment 
-        put_word(segment, segment, UDS * REG_SIZE); // Set Umode data  segment
+        put_word(segment, segment, UCS * size); // Set Umode code  segment 
+        put_word(segment, segment, UES * size); // Set Umode extra segment 
+        put_word(segment, segment, UDS * size); // Set Umode data  segment
 
         // execution from uCS segment, uPC offset
         // (segment, 0) = u1's beginning address
 
         // initial USP relative to USS
-        p->usp = -NUM_UREG * REG_SIZE;  // Top of Ustack (per INT 80)
+        p->usp = -NUM_UREG * size;  // Top of Ustack (per INT 80)
         p->uss = segment;
 
         // When the new PROC execute goUmode in assembly, it does:

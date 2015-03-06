@@ -23,14 +23,14 @@ main()
 
     cmd = find_cmd(name);
     switch(cmd){
-           case 0 : getpid();    break;
-           case 1 : ps();        break;
-           case 2 : chname();    break;
-           case 3 : kfork();     break;
-           case 4 : kswitch();   break;
-           case 5 : wait();      break;
-           case 6 : getMyname(); break;
-           case 7 : exit();      break;
+           case 0 : getpid();   break;
+           case 1 : ps();       break;
+           case 2 : chname();   break;
+           case 3 : kfork();    break;
+           case 4 : kswitch();  break;
+           case 5 : wait();     break;
+           case 6 : hop();      break;
+           case 7 : exit();     break;
 
            default: invalid(name); break;
     }

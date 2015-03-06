@@ -1,14 +1,16 @@
 // ucode.c file
 
-char *cmd[]={"getpid", "ps", "chname", "kfork", "switch", "wait", "getMyname", "exit", 0};
+typedef unsigned long  u32;
+
+char *cmd[]={"getpid", "ps", "chname", "kfork", "switch", "wait", "hop", "exit", 0};
 
 #define LEN 64
 
 int show_menu()
 {
-   printf("********************* Menu **************************\n");
-   printf("*  ps  chname  getMyname  kfork  switch  wait  exit *\n");
-   printf("*****************************************************\n");
+   printf("***************** Menu ************************\n");
+   printf("*  ps  chname  kfork  switch  wait  hop  exit *\n");
+   printf("***********************************************\n");
 }
 
 int find_cmd(char *name)
@@ -40,20 +42,7 @@ int chname()
     char s[64];
     printf("input new name : ");
     gets(s);
-    return syscall(2, s, 0);
-}
-
-int getMyname()
-{
-    int len;
-    char name[64];
-
-    len = syscall(12, name, 0);
-
-    printf("Name: '%s'\n", name);
-    printf("Length: %d\n", len);
-
-    return len;
+    syscall(2, s, 0);
 }
 
 int kfork()
@@ -81,10 +70,25 @@ int wait()
     printf("\n"); 
 } 
 
+// Only accurate from -32768 to 32767
+int atoi(char* str)
+{
+    int i;
+    int value = 0;
+    int len = strlen(str);
+
+    for(i = len; i > 0; i--) 
+        value += (str[len - i] - '0') * int_pow(10, i - 1);
+
+    return value;
+}
+
 int geti()
 {
   char s[16];
-  return atoi(gets(s));
+  gets(s);
+
+  return atoi(s);
 }
 
 int exit()
@@ -117,3 +121,13 @@ int invalid(char *name)
 {
     printf("Invalid command : %s\n", name);
 }
+
+int hop()
+{
+    u32 newsegment;
+    printf("Hop to segment: ");
+    newsegment = geti();
+    printf("\n");
+    return syscall(7,newsegment,0);
+}
+
