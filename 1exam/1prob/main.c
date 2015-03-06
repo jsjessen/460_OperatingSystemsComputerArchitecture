@@ -152,8 +152,8 @@ PROC* kfork()
 
 #define NUM_REG 6
 
-    for (i = 1; i < NUM_REG + 1; i++) // start at 1 becuase first array index is 0
-         p->kstack[SSIZE - i] = 0;         // all saved registers = 0
+    // for (i = 1; i < NUM_REG + 1; i++) // start at 1 to skip rPC 
+    //      p->kstack[SSIZE - i] = 0;    // 0 out everything else 
 
     p->kstack[SSIZE - 1] = (int)body; // called tswitch() from body, set rPC
     p->kstack[SSIZE - 2] = 0; // set stack frame (body is infinite loop, 0 ok) 

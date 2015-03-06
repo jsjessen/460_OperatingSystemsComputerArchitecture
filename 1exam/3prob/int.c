@@ -69,9 +69,10 @@ int copy_image(int child_segment)
     int i;
     u16 word;
 
+#define WORD_SIZE 2
+
     // A segment is 64kb
-    //for(i = 0; i < (64 / WORD_SIZE) * 1024; i++)
-    for(i = 0; i < 32768; i++)
+    for(i = 0; i < (64 / WORD_SIZE) * 1024; i++)
     {
         // Consider assuming get/put word is not so simple
         // try using only get/put byte because it was made by KC
@@ -83,7 +84,6 @@ int copy_image(int child_segment)
 
 int hop(u32 newsegment)
 {
-    int i;
     u16 segment;
 
     printf("Hopping to segment: %d\n", newsegment);
@@ -96,23 +96,32 @@ int hop(u32 newsegment)
     // Important: change this AFTER copying
     running->uss = segment;
 
-    //                              Parent (running)
-    // ========================== P1's image in 0x2000 ============================
-    // 
-    // 0x2000                   |       int80h             |  INT 80  |syscall(7,0,0)
-    // ----------------------------------------------------|--------------------------
-    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|0|xxxx| 
-    // --------------------------|-----------------------------------------------|----
-    //                          usp                                              usp
-    // P1's PROC.uss=0x2000      |             DS,ES,CS = 0x2000
-    //           usp= ------------         
+    //       new PROC
+    //        ------
+    //        |uss | = new PROC's SEGMENT value
+    //        |usp | = -24                                    
+    //        --|---                                    Assume P1 in segment=0x2000:
+    //          |                                              0x30000  
+    //          |                                              HIGH END of segment
+    //  (LOW) | |   ----- by SAVE in int80h ----- | by INT 80  |
+    //  --------|-------------------------------------------------------------
+    //        |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
+    //  ----------------------------------------------------------------------
+    //          0   1   2   3   4   5   6   7   8   9  10   11
+
+#define REG_SIZE 2
+
+#define UDS 0 
+#define UES 1 
+#define UCS 10
 
     // Need to use putword to set DS, ES, CS to the new segment 
     // so things don't get messed up when change to Umode
     // Conform to one-segment model
-    put_word(segment, segment, running->usp + 0); // Set Umode data  segment
-    put_word(segment, segment, running->usp + 1); // Set Umode extra segment 
-    put_word(segment, segment, running->usp + 10); // Set Umode code  segment 
+
+    put_word(segment, segment, running->usp + (UDS * REG_SIZE); // Set Umode data  segment
+    put_word(segment, segment, running->usp + (UES * REG_SIZE); // Set Umode extra segment 
+    put_word(segment, segment, running->usp + (UCS * REG_SIZE); // Set Umode code  segment 
 
     return newsegment;
 }

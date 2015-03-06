@@ -176,7 +176,7 @@ PROC* kfork(char* filename)
     //  retPC, ax, bx, cx, dx, bp, si, di, flag;  all 2 bytes
 
     // clear all saved registers on Kstack
-    for (i = 1; i < NUM_KREG + 1; i++) // start at 1 becuase first array index is 0
+    for (i = 1; i < NUM_KREG + 1; i++) // start at 1 to skip rPC 
         p->kstack[SSIZE - i] = 0;     // all saved registers = 0
 
     p->kstack[SSIZE - 1] = (int)body;       // Set rPC so it resumes from body() 
@@ -192,19 +192,6 @@ PROC* kfork(char* filename)
 
         // SETUP new PROC's ustack for it to return to Umode to execute filename;
         
-        //       new PROC
-        //        ------
-        //        |uss | = new PROC's SEGMENT value
-        //        |usp | = -24                                    
-        //        --|---                                    Assume P1 in segment=0x2000:
-        //          |                                              0x30000  
-        //          |                                              HIGH END of segment
-        //  (LOW) | |   ----- by SAVE in int80h ----- | by INT 80  |
-        //  --------|-------------------------------------------------------------
-        //        |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag|NEXT segment
-        //  ----------------------------------------------------------------------
-        //         -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 |
-
         //   uSP
         // ---|--------------------------------------------------------
         // | uDS | uES | bp | bx | ax | uPC | uCS | flag | NEXT SEGMENT 
