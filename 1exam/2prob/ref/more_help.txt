@@ -1,0 +1,148 @@
+<Title>460 Class Notes</Title>
+<Body bgcolor="#00cccc" text="#000000">
+<pre>
+
+------------------------- PER LAB4.help --------------------------------------
+                     
+REAL Address:     0x10000                     0x20000
+Segment Addr  kCS=0x1000                      0x2000  
+                  |                           |   
+Vector80    ----->|                           |
+      |     |     |                           |        P1's Umode Image  
+   |--|-----|-----|---------------------------|------------------------------
+   |  |kPC|kCS|   | MTX   Kernel              |u1Code|u1Data|     P1 ustack |  
+   -----|-------------------------------------|------------------------------ 
+        |         |Code     PROCs             |  
+        |         |         freeList---->     |
+        |         |         readyQueue-->     |                         
+        |         |                           |       
+        |         |         running->PROC     |
+        |         |                  kstack[] | 
+        |         |                           |  
+        ----------|>_int80h:                  |
+                  |   push ax,bx,...ds        |
+                  |                           |  
+                  |                           |
+                  -----------------------------                    
+
+main()
+{
+    printf("MTX starts in main()\n");
+    init();      // initialize and create P0 as running                  ^ 
+                                                                         |
+(1). set_vec(80, int80h);  // set vetcor 80 = [PC=int80h, CS=0x1000]     |
+                                                                         |
+(2). kfork("/bin/u1");  // P0 kfork() P1 WITH IMAGE FILE ==> P1's Umode ABOVE 
+
+}
+
+
+/***********************************************************
+  kfork() creates a child proc and returns the child pid.
+  When scheduled to run, the child process resumes to body();
+************************************************************/
+PROC *kfork(char *filename)
+{
+  PROC *p;
+  int  i, child;
+  u16  segment;
+//=================== SAME AS LAB 3 ========================================
+  /*** get a PROC for child process: ***/
+  if ( (p = get_proc(&freeList)) == 0){
+       printf("no more proc\n");
+       return(-1);
+  }
+  /* initialize the new proc and its stack */
+  p->status = READY;
+  p->ppid = running->pid;
+  p->parent = running;
+  p->priority  = 1;                 // all of the same priority 1
+
+  // clear all SAVed registers on kstack
+  for (i=1; i<10; i++)
+      p->kstack[SSIZE-i] = 0;
+ 
+  // fill in resume address
+  p->kstack[SSIZE-1] = (int)body;
+  // save stack TOP address in PROC
+  p->ksp = &(p->kstack[SSIZE - 9]);
+
+  enqueue(&readyQueue, p);
+
+
+//============ ADD THESE FOR Umode Image and Ustack =======================
+  nproc++;
+  if (filename){
+
+     segment = 0x1000*(p->pid+1);  // new PROC's segment
+     load(filename, segment);      // load file to LOW END of segment
+
+     /********** ustack contents at HIGH END of ustack[ ] ************
+        PROC.usp
+       -----|------------------------------------------------
+          |uDS|uES|udi|usi|ubp|udx|ucx|ubx|uax|uPC|uCS|flag|
+       -----------------------------------------------------
+          -24 -22 -20 -18 -16 -14 -12 -10  -8  -6  -4  -2
+     *****************************************************************/
+
+     for (i=1; i<=12; i++){         // write 0's to ALL of them
+         put_word(0, segment, -2*i);
+     }
+     
+     put_word(0x0200,   segment, -2);    /* flag */  
+     put_word(segment,  segment, -4);    /* uCS */  
+     put_word(segment,  segment, -22);   /* uES */  
+     put_word(segment,  segment, -24);   /* uDS */  
+
+     // YOU WRITE CODE TO FILL IN uDS, uES, uCS
+
+     /* initial USP relative to USS */
+     p->usp = -2*12; 
+     p->uss = segment;
+  }
+
+  printf("Proc %d kforked a child %d at segment=%x\n",
+          running->pid, p->pid, segment);
+  return p;
+}
+===========================================================================
+
+(3). When P1 starts to run, it resume to body() in kernel
+(4). With 'u' command, P1 executes goUmode():
+
+         running -------> PROC of P1
+                 ----------------------------------
+                 |  next                          |
+                 |  ksp                           |  
+                 |  uss = P1's segment   = 0x2000 |
+                 |  usp = P1 (saved) usp = -24    |  
+                 ----------------------------------  
+    PROC.usp          
+       -----|-------0---0---0---0---0---0---0---0-----------
+          |uDS|uES|udi|usi|ubp|udx|ucx|ubx|uax|uPC|uCS|flag|
+       -----------------------------------------------------
+           -24 -22 -20 -18 -16 -14 -12 -10 -8  -6  -4   -2
+_goUmode:
+        cli
+	mov bx,_running 	! bx -> PROC
+        mov ax,USS[bx]
+        mov ss,ax               ! restore uSS
+        mov sp,USP[bx]          ! restore uSP
+        ---------------------------------------- 
+                         CPU's SS=uss = 0x2000
+	                       sp=usp = -24
+        ----------------------------------------
+        pop ds
+	pop es
+	pop di
+        pop si
+        pop bp
+        pop dx
+        pop cx
+        pop bx
+        pop ax  ! NOTE: contains return value to Umode     
+	
+        iret  ==> pop   [uPC| uCS  | flag ] into CPU ==> CPU executes from
+                        | 0 |0x2000|0x0200|              [PC=0, CS=0x2000]  
+
+(5). At [CS=0x2000, PC=0]= [u1Code BEGINNING ==> CPU starts to execute u1 in UMODE
