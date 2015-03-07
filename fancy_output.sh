@@ -1,7 +1,7 @@
 #!/bin/sh
 
-#debug=0
-debug=1
+debug=0
+#debug=1
 
 Black='\033[0;30m'    
 DarkGray='\033[1;30m'

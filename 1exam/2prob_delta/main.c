@@ -198,25 +198,44 @@ PROC* kfork(char* filename)
         // | uDS | uES | bp | bx | ax | uPC | uCS | flag | 32kb |  NEXT SEGMENT 
         // --------------------------------------------------------------------
         //    -8    -7   -6   -5   -4    -3    -2    -1
+        //
+        //    To go from 64 KB to 32 KB
+        //    If using negative ref to come from high end, need to subtract an additional 32 KB
+        //      but this probably doesn't work because the assembly is still pusing to end, not conforming to 32 KB model
+        //    If opting to come from the low end of segment, use offset from stack pointer 
 
 #define NUM_UREG 8 
 #define REG_SIZE 2
 
-#define UFLAG -1
-#define UCS   -2
-#define UES   -7
-#define UDS   -8
+// JUST DO 32KB - 1,2,7,8
 
-        // write 0's to ALL of them
+// #define UFLAG -(1 + 16384)
+// #define UCS   -(2 + 16384)
+// #define UES   -(7 + 16384)
+// #define UDS   -(8 + 16384)
+
+#define UFLAG 7 
+#define UCS   6 
+#define UES   1 
+#define UDS   0  
+
+// write 0's to ALL of them
         for(i = 1; i <= NUM_UREG; i++)       
             put_word(0, segment, -i * REG_SIZE);
 
-        put_word(0x0200, segment, UFLAG * REG_SIZE); // Set flag I bit-1 to allow interrupts 
+        put_word(0x0200, segment, p->usp + (UFLAG * REG_SIZE)); // Set flag I bit-1 to allow interrupts 
 
         // Conform to one-segment model
-        put_word(segment, segment, UCS * REG_SIZE); // Set Umode code  segment 
-        put_word(segment, segment, UES * REG_SIZE); // Set Umode extra segment 
-        put_word(segment, segment, UDS * REG_SIZE); // Set Umode data  segment
+        put_word(segment, segment, p->usp + (UCS * REG_SIZE)); // Set Umode code  segment 
+        put_word(segment, segment, p->usp + (UES * REG_SIZE)); // Set Umode extra segment 
+        put_word(segment, segment, p->usp + (UDS * REG_SIZE)); // Set Umode data  segment
+
+        //put_word(0x0200, segment, UFLAG * REG_SIZE); // Set flag I bit-1 to allow interrupts 
+
+        // Conform to one-segment model
+        // put_word(segment, segment, UCS * REG_SIZE); // Set Umode code  segment 
+        // put_word(segment, segment, UES * REG_SIZE); // Set Umode extra segment 
+        // put_word(segment, segment, UDS * REG_SIZE); // Set Umode data  segment
 
         // execution from uCS segment, uPC offset
         // (segment, 0) = u1's beginning address

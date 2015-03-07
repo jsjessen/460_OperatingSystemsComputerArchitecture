@@ -80,11 +80,11 @@ RESUME:                        ! RESUME:
         popf                   ! 	    pop  bp
         pop  bp                ! 	    pop  dx
                                ! 	    pop  cx                                   
-        mov ax,0               ! 	    pop  bx                                   
-        mov bx,0               ! 	    pop  ax                                   
-        mov cx,0               !                                                   
-        mov dx,0               !        ret                 ! now sp points at rPC 
-        mov si,0    
-        mov di,0
+       !mov ax,0               ! 	    pop  bx                                   
+       !mov bx,0               ! 	    pop  ax                                   
+       !mov cx,0               !                                                   
+       !mov dx,0               !        ret                 ! now sp points at rPC 
+       !mov si,0    
+       !mov di,0
         
         ret
