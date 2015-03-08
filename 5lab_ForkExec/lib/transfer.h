@@ -14,5 +14,7 @@ u16 get_word(u16 segment, u16 offset);
 void put_byte(u8 byte, u16 segment, u16 offset);
 void put_word(u16 word, u16 segment, u16 offset);
 
+// Copy source segment to the destination segment 
+int copy_image(int source_segment, int dest_segment);
 
 #endif

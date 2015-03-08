@@ -4,6 +4,7 @@ int color;
 main()
 { 
   char name[64]; int pid, cmd;
+  int count = 0;
 
   while(1)
   {
@@ -11,6 +12,7 @@ main()
     color = 0x000A + (pid % 6); 
        
     printf("\n----------------------------------------------\n");
+    printf("U1 Count = %d\n", count++);
     printf("I am proc %d in U mode: running segment=%x\n",getpid(), getcs());
     show_menu();
     printf("Command ? ");

@@ -1,10 +1,5 @@
 #include "kernel.h"
 
-#define UFLAG (-1  * WORD_SIZE) // Flag
-#define UCS   (-2  * WORD_SIZE) // Code Segment
-#define UES   (-11 * WORD_SIZE) // Extra Segment
-#define UDS   (-12 * WORD_SIZE) // Data Segment
-
 /***********************************************************
   kfork() creates a child proc and returns the child pid.
   When scheduled to run, the child process resumes to body();
@@ -67,12 +62,12 @@ PROC* kfork(char* filename)
         for(i = 1; i <= NUM_UREG; i++)       
             put_word(0, segment, -i * WORD_SIZE);
 
-        put_word(0x0200, segment, UFLAG); // Set flag I bit-1 to allow interrupts 
+        put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
 
         // Conform to one-segment model
-        put_word(segment, segment, UCS); // Set Umode code  segment 
-        put_word(segment, segment, UES); // Set Umode extra segment 
-        put_word(segment, segment, UDS); // Set Umode data  segment
+        put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
+        put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
+        put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
 
         // execution from uCS segment, uPC offset
         // (segment, 0) = u1's beginning address
@@ -138,3 +133,197 @@ int kexit(u16 exitValue)
     printf("\nI AM BACK FROM THE DEAD\n");
     return SUCCESS;
 } 
+
+// fork - running process creates a child process
+// parent returns child pid
+// child  returns 0
+int fork()
+{
+    int i;
+    u16 child_segment;
+    PROC* child;
+    PROC* parent = running;
+    // get a first proc from freeList for child process
+    if((child = delist(&freeList)) == NULL)
+    {
+        printf("Cannot fork because there are no free processes.\n");
+        return FAILURE;
+    }
+    // initialize child process and its stack
+    child->status = READY;
+    child->priority = 1;
+    child->ppid = parent->pid;
+    child->parent = parent;
+
+    //---------- Kstack ---------- 
+
+    // clear all saved registers on Kstack
+    for (i = 1; i <= NUM_KREG; i++)     // start at 1 to skip overwriting rPC 
+        child->kstack[SSIZE - i] = 0;   // all registers = 0
+
+    // Create a child process such that when 
+    // it starts to run (in Kmode), it resumes to goUmode()
+    child->kstack[SSIZE - 1] = (int)goUmode;       
+    child->ksp = &(child->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
+
+    enqueue(&readyQueue, child);
+    nproc++;
+
+    // Determine child's segment
+    child_segment = 0x1000 * (child->pid + 1);
+
+    printf("P%d forked child P%d at segment=%x\n",
+            running->pid, child->pid, child_segment);
+
+    //---------- Ustack ---------- 
+
+    child->usp = parent->usp; 
+    child->uss = child_segment;
+
+    // Copy parents segment image to child's segment
+    copy_image(running->uss, child_segment);
+
+    //        Assume: P1 fork() P2 by        int r = syscall(7,0,0);
+    // 		      
+    //                              Parent (running)
+    // ========================== P1's image in 0x2000 ============================
+    // 
+    // 0x2000                   |       int80h             |  INT 80  |syscall(7,0,0)
+    // ----------------------------------------------------|--------------------------
+    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|0|xxxx| 
+    // --------------------------|-----------------------------------------------|----
+    //                          usp                                              usp
+    // P1's PROC.uss=0x2000      |             DS,ES,CS = 0x2000
+    //           usp= ------------         
+    // 
+    //                              Child of running
+    // ===========================P2's image in 0x3000 ============================
+    // 
+    // 0x3000                   |       int80h             |  INT 80  |syscall(7,0,0)
+    // ----------------------------------------------------|--------------------------
+    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0||xxxxx| 
+    // --------------------------|----------------------------------------------------
+    //                           0  1  2  3  4  5  6  7  8  9  10  11   12
+    //                          usp    
+    // P2's PROC.uss=0x3000      |      COPIED DS,ES,CS = 0x2000 ALSO
+    //           usp=-------------                        but needs to be 0x3000
+    // 
+    // PC should be the same (offset in segment)
+
+
+    // Need to use putword to set DS, ES, CS to 0x3000 
+    // so things don't get messed up when change to Umode
+    // Conform to one-segment model
+    put_word(child_segment, child_segment, child->usp + UCS_FROM_USP); // Set Umode code  segment 
+    put_word(child_segment, child_segment, child->usp + UES_FROM_USP); // Set Umode extra segment 
+    put_word(child_segment, child_segment, child->usp + UDS_FROM_USP); // Set Umode data  segment
+
+    // Now parent and child are identical except for segment registers (UCS,UES,UDS).
+    // Child's stack pointer is the same as parent's, but the usp is just an
+    // offset relative to the segment so it doesn't need to be changed.
+    // Child thinks its done the same things that parent has done in Umode.
+
+    if(child->usp != running->usp)
+        printf("child->usp != running->usp\n");
+    else
+        printf("child->usp == running->usp\n");
+
+    // Change child's return value to 0
+    put_word(0, child_segment, child->usp + UAX_FROM_USP); // try with running->usp (should be same)
+    return child->pid; // Parent returns child's PID
+}
+
+// a process can use exec to change image
+int exec(char* filename)
+{
+    int i;
+    u16 segment = running->uss;
+
+    // Locate the file "filename", verify it's eXecutable, read file header
+    // to determine the TOTAL memory needed, allocate a memory area for the 
+    // NEW Umode image, then load the EXECUTABLE part of the file into memory.
+    // 
+    // The load(filename, segment) function is given. Use it as is.
+
+    // load file to beginning of segment
+    load(filename, segment);
+    // start over from new image
+
+    // -------------------------------------
+    // how to pass parameters:
+    // pointer to stack
+    // if given "a.out one two three"
+    // copy whole string to high end of stack
+    // main0(char* s) // in crt0.o ?
+    // 
+    // flag | s | "a.out one two three" |
+    //        ^
+    //        |
+    //        sp
+    // 
+    // once get string, tokenize using ' ' (space)
+    // create an array of pointers pointing to the strings
+    // main(int argc, char* argv[])
+    // 
+    // so main0(), tokenize, then call main() with argc/argv
+    // -------------------------------------
+    //
+    // then move execution to beginning of stack
+    // now executing the file
+
+    // (2). After loading the new Umode image, fix up the ustack contents to make the
+    //      process execute from virtual address 0 when it returns to Umode. Refer to 
+    //      the diagram again:
+    // 
+    //      0 out di through ax
+    //      PC also set to 0
+    //      flag = Umode flag
+    // 
+    //      (LOW)  uSP                                | by INT 80  |   HIGH
+    //      ---------------------------------------------------------------------
+    //            |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag| XXXXXX
+    //      ---------------------------------------------------------------------
+    //             -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
+    //              0   1   2   3   4    5  6   7   8   9   10  11
+    
+    for(i = 1; i <= NUM_UREG; i++)       
+        put_word(0, segment, -i * WORD_SIZE);
+
+    put_word(0x0200, segment, -1 * WORD_SIZE); // Set flag I bit-1 to allow interrupts 
+
+
+    // bp is stack frame pointer, each pointing to another stack frame, linked list ending in 0
+    //         (a). re-establish ustack to the very high end of the segment.
+    //         (b). "pretend" it had done  INT 80  from (virtual address) 0: 
+    //              (c). fill in uCS, uDS, uES in ustack
+
+    // Conform to one-segment model
+    put_word(segment, segment, running->usp + UDS_FROM_USP); // Set Umode data  segment
+    put_word(segment, segment, running->usp + UES_FROM_USP); // Set Umode extra segment 
+    put_word(segment, segment, running->usp + UCS_FROM_USP); // Set Umode code  segment 
+
+    //              (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
+    //                                         all other registers = 0;
+    //              (e). fix proc.uSP to point at the current ustack TOP (-24)
+    //running->usp = 
+    //      Finally, return from exec() ==> goUmode().
+
+    //child->kstack[SSIZE - 1] = (int)goUmode;       
+    //child->ksp = &(child->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
+
+    // 
+    // *************************     BONUS: **************************************
+    // 
+    //    Implement YOUR exec("filename arg1 arg2 ... argn") in such a way that, 
+    // upon entry to the new image, the main() function can be written as
+    // 
+    //     // main0 tokenize input string into argc/argv and then call main()
+    // 
+    //     main(int argc, char *argv[ ])
+    //     {
+    //       // argc = n+1;
+    //       // argv[0]= "filename"; argv[1]=arg1, ... argv[n]=argn;
+    //     }
+
+    return SUCCESS;
+}

@@ -21,7 +21,22 @@
 #define NUM_KREG  9
 #define NUM_UREG 12 
 
+#define KB        1024
+#define REG_SIZE  2
 #define WORD_SIZE 2
+
+#define NAMELEN 32
+
+#define UFLAG_FROM_END (-1  * WORD_SIZE) // Flag
+#define UCS_FROM_END   (-2  * WORD_SIZE) // Code Segment
+#define UES_FROM_END   (-11 * WORD_SIZE) // Extra Segment
+#define UDS_FROM_END   (-12 * WORD_SIZE) // Data Segment
+
+#define  UDS_FROM_USP ( 0 * REG_SIZE) // Data Segment
+#define  UES_FROM_USP ( 1 * REG_SIZE) // Extra Segment
+#define  UCS_FROM_USP (10 * REG_SIZE) // Code Segment
+
+#define  UAX_FROM_USP ( 8 * REG_SIZE) // Return Register
 
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
 
@@ -44,6 +59,8 @@ int goUmode();
 // kernel.c
 PROC *kfork(char* filename);
 int kexit(u16 exitValue);
+int fork();
+int exec(char* filename);
 
 // wait.c
 void ksleep(int event);
@@ -58,6 +75,7 @@ int do_exit();
 void do_sleep();
 void do_wakeup();
 void do_wait();
+int do_exec(char* filename);
 
 // int.c
 int kcinth();
@@ -70,8 +88,6 @@ int kkwait(int *status);
 int kkexit(int value);
 int kgetc();
 int kputc(char c);
-int fork();
-int exec(char* filename);
 
 
 #endif
