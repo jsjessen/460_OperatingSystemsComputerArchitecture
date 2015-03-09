@@ -1,3 +1,15 @@
+JJ:
+    1: Allocate (get first status Not-Busy pipe from pipe[]) and initialize pipe (0s and room=PSIZE)
+    2: Allocate 2 OFT instances (1 reader, 1 writer)
+    3: Index in proc (these are the descriptors)
+    4: pipe(<Reader FD>, <Writer FD>) where FD=FileDescriptor which is the index (refcount++)
+    5: fork child proc (refcount = 2) (he gives code in his fork() code for copying FD)
+    6: Arbitrary choice if parent/child is reader/writer, choose
+    7: Reader close Writer FD, and Writer close Reader FD (he gives close_pipe and read_pipe, you do write_pipe)
+
+
+Note to self: split type.h into global.h and kernel.h
+
 1. File Descriptors:
 
      #include &lt;fcntl.h&gt;
