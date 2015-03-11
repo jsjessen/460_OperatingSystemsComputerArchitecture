@@ -1,0 +1,684 @@
+            Notes on Semaphores for Process Synchronization
+
+1. Critical Region:  
+      Processes may share common data structures and variables, e.g. processes
+   in Kmode share the SAME data in kernel. A Critical Region (CR) is a sequence
+   of operations on shared varialbes, which can only be executed by one process
+   at a time. There are many critical regions in OS as well as in real life. 
+      Example:
+           A "resource" is anything that may cause a process OR person to 
+           wait, such as a printer, a memeory area, message, ......
+           In an air-liner, those "occupied" boxes (bathroom), .....
+
+      The fundamental problem is "How to implement a Critical Region (CR)"
+      that guarantees
+
+          . Mutual Exclusion, i.e. one process at a time, and 
+          . (Other issues:)
+             fairness, efficiency, generality, ease of use, etc.
+ 
+2. Solutions:  
+   ASSUME:  a SHARED MEMORY system model, e.g. a computer system consists of 
+       multiple CPUs accessing shared memory. On such a system, READ x and 
+       WRITE x are indivisible operations, where x is memory location. This
+       indivisibility is guaranteed by the memory access controller hardware.
+
+       However, the indivisibility of READ and WRITE cannot guarantee process
+       mutual exclusion.
+
+   Examples:
+   (1). Assume x=1. Consider the simple operation of x = x + 1; 
+        which cosists of
+             S1:     read x from memory into a CPU;
+             S2:      inc x inside the CPU;
+             S3:    write x back to memory;
+
+        Assume that P1 has executed S1 but not yet S3. P2 executes S1, reading
+        x=1. Then P1 writes 2 to x. Then P2 also write 2 to x. The final x
+        value is 2, which should be 3. So the result is INCORRECT! 
+        However, if P1 and P2 execute the sequence of [S1, S2, S3] one at a 
+        time, the result would be correct. 
+ 
+    (2). Request for Rsources:
+     Assume that a resource is something that can be used by only one process
+     at a time. The status of the resource can be represented by a VARIABLE s,
+     which is global to all processes.
+     Assume that s==FREE if the resource is available, and BUSY otherwise.
+     Any process wishing to use the resource must first check the status 
+     variable s, perhaps as follows:
+
+        check:  if (s==FREE){
+                    s = BUSY;  
+                    use the resource;
+                    when finished, set s = FREE;
+                }
+                /* resource is BUSY, what to do?  
+                   option 1 : goto check;  /* NOT a good option, busy waiting loop (completely fails with single CPU) */
+                   option 2 : sleep(&s);   /* take a nap until awakened */
+                             ----------------------------------------------
+                              goto check;  /* TRY AGAIN */
+
+                   option 3 : Use a "better method" to access resource,
+                              which is the purpose of this lecture.
+
+     The above piece of code SEEMs to work, but there is a serious flaw
+     at the place labeled check: because
+
+        Two or more processes may arrive at check: at the "same time".
+        (HOW can this happen in a single-CPU system? Think about it)
+        If so, all will see s==FREE (before any of them has set s = BUSY).
+        If so, all will set s = BUSY and THINK they've got the resource.
+        Results: Chaos !!
+
+        This is called a "race condition", since the outcome depends on 
+        the "order of executions". Clearly, race conditions cannot be 
+        allowed in any OS design. 
+
+     The above example also shows that 
+         While we are trying to use the status vairable s to control the
+         access to a Critical Region (use of the resource), operations on
+         the status variable itself are also a CR.
+
+     Thus, the CR problem is recursive in the sense that a solution at 
+     one level relies on solutions at a lower level.  From a system 
+     programming point of view, this recursion stops at the hardware level.  
+
+JJ: sleep/wake works only in single CPU case
+    with more, wake could happen just before other goes to sleep
+    so they miss the call and never wake
+
+2-1. Additional Hardware Support:
+     CPUs designed for Multi-Processor systems usually support a TS(x) 
+     instruction, which stands for  
+
+     . Test_and_Set(x)           or    some equivalent instruction(s):
+
+     where  TS(x) == { READ x from memory, TEST x value, and WRITE 1 to x } 
+     is an indivisible operation. 
+     
+     Example: on the 680xx CPU,  TS(x) is implemented by a single 
+                     Read_modify_Write 
+              bus cycle. Once a CPU has started TS(x), no other CPU is allowed
+              to access memory, until the entire R_T_W bus cycle finishes.
+
+     . Interrupts_off();  Mask out all interrupts (to ONE CPU);
+
+     . Interrupts_on();   Mask in interrupts (to one CPU).
+     On the Intel CPUs, the equivalent instruction is XCHG, which swaps a CPU
+     register with a memory location contents.
+
+     On the Intel x86 CPU, it's the XCHG instruction, which exchanges a CPU
+     register with a memory location in an ATOMIC or indivisible operation.
+
+2-2. How To Implement CR:
+
+     /* initially x == 0; */
+
+     Each process (running on a CPU) executes the following sequence 
+     of code:
+
+           while(1){ 
+             ...............;    /* actions not requiring CR */
+             
+            /* Try to enter CR */
+
+1.             Interrupt_off();  /* save CPU status Reg in local, then
+                                    mask out interrupts */
+2.               while (TS(x));  /* busy wait until TS(x)==0; a spin lock */
+
+                       *********************
+                       *  Critical Region  *
+                       *********************
+
+3.               clr(x);         /* release the spin lock */
+
+4.             Interrupts_on();  /* restore the saved CPU status Reg */
+
+           /* exit CR         */
+            ...............;
+            
+          }
+
+     ======================================================================
+     The above piece of code ensures that at most one process can be inside
+     the Critical Region box at any given time instant.
+     ======================================================================
+
+     QUESTIONS : (1). Verify the above statement.
+                 (2). Does the order of 1 AND 2 matter?
+
+2-3. Layers of CR and Synchronization tools:
+     It is possible to solve all CR problems by using ONLY the hardware 
+     features.  But it is inconvenient to do so. For example,
+
+    .Given: Only READ and WRITE are indivisible (One CPU at a time,
+            hence one process at a time) ===> work out your solution 
+            to the CR problem. This is possible but not worth the effort.
+            The solution is known as "Decker's algorithm", which is very 
+            complex. So it is NEVER used in practice.
+  
+    .OR better yet:
+            Given: TS(x) instruction and Mask/UnMask interrupts,
+            workout your solution to the CR problem for processes.
+
+    The solutions thus obtained may be regarded as a software tool at the 
+    lowest level.  Once we have such a software tool, we can use it to 
+    build other synchronization tools at a higher level.
+
+2-4. Kinds of Synchronization Primitives:
+
+(1). Unix Events: 
+      sleep(event);         wakeup(event);
+
+     These are already covered before. In the current context, we MUST
+     implement them as Critical Regions, i.e. we must ensure that at most
+     one process can execute sleep() or wakeup() at a time.
+
+     Consider what would happen if one process can execute wakeup() while
+     another one is executing sleep()?  They would mess up the proc sleep 
+     queue, resulting in inconsistent (kernel) data strcutres.
+
+     QUESTION: YOUR implementation of sleep()/wakeup() in LAB#3 allowed
+               "race conditions" yet it worked.  WHY?
+
+
+(2). Semaphores:
+************************  MAIN TOPIC HERE ********************************** 
+                   SEMAPHORES and P.V OPERATIONS
+****************************************************************************
+
+3.    Semaphores (and their associated P,V operations) are software tools 
+      used for process sychronization. Such tools are usually called 
+      synchronization primitives, where "primitive" means "atomic" or 
+      "indivible".  
+
+      Semaphores were (UP/DOWN) signals used to control trains on railroad
+      tracks. The terms P/V, which stand for Up/DOWN in Dutch, were due to
+      Dijkstra, a very famous guy in Computer Science.
+
+3-1. Semaphores: 
+     (This is MY improved version of counting semaphores, NOT Dijkstra's
+      original "binary" semaphores).
+
+     A semaphore is a structure defined as follow:
+
+       typedef struct semaphore{
+                  int  lock;      // spinlock
+                  int  value;
+                  PROC *queue;      /* a FIFO queue */
+           } SEMAPHORE;
+
+     Assume:    
+       #define interrupts_off() { save    CPU.SR;  mask out interrupts;}
+       #define interrupts_on()  { restore CPU.SR to saved SR; }
+                        
+       #define LOCK(x)      while(TS(x));
+       #define UNLOCK(x)    x=0;
+
+       SEMAPHORE  s;        s.value = INITIAL_VALUE; s.queue = NULL;
+       For each semaphore s, define  char slock = 0; 
+
+     Two (primitive) operations defined on semaphores are
+
+         P(SEMAPHORE *s)
+         { 
+           interrupts_off();        /* see above macro #defines */
+             LOCK(s->lock);         /* keep trying on the spin lock */
+
+               s->value --;
+               if (s->value < 0)
+                  wait(s->queue);   /* block caller;
+                                       enqueue caller to s->queue);
+                                       UNLOCK(s->lock);
+                                       switch process;
+                                      <================= resume point !!!!  
+               else                 */   
+                  UNLOCK(s->lock);
+             <==== /* resume point is here if waited in s-queue */ 
+           interrupt_on();          /* restore saved CPU status Reg */
+         }
+
+        
+        V(SEMAPHORE *s)
+        { 
+           interrupts_off();
+             LOCK(s->lock);
+
+                s->value ++;
+                if (s->value <= 0)
+                signal(s->queue); /* dequeue and wakeup
+                                     first waiter from s->queue 
+                                  */
+            UNLOCK(s->lock);
+          interrupts_on(); 
+        }
+
+
+     The above implementation of P,V is intended for Multi-CPU systems.
+     For Uni-CPU systems, the LOCK(s->lock)/UNLOCK(s->lock) are not necessary
+     (since there are no other CPUs) and can be omitted.
+
+     Since interrupt_off()/interrupts_on() are always required, they are 
+     understood to be there, which can also be omitted, yielding the  
+     SIMPLIFIED  code for P,V:
+
+     ----------------------------------------------------------------
+          P(s) SEMAPHORE *s;       |         V(s) SEMAPHORE *s;     
+          {                        |         {
+             if (--s->value < 0)   |            if (++s->value <= 0)
+                 wait(s->queue);   |                signal(s->queue);
+          }                        |         }
+     ----------------------------------------------------------------
+
+     This simplified code is just for convenience; keep in mind that the 
+     interrupts_off() and interrupts_on() must ALWAYS be included in the 
+     actual implementation of P,V.
+
+
+4. Proper Use of (Counting) Semaphores:
+   Now we demonstrate the use (and power) of semaphores as a means of 
+   process sychronization.
+
+4-1. Critical Region:
+
+     Semaphores with initial value=1 can be used to implement CR. Processes
+     enter and exit CR as follows:
+         
+               P(&s);
+                     *********************
+                     *  Critical Region  *
+                     *********************  
+               V(&s);
+
+4-2. Resource Management:
+
+(1). A semaphore s with an initial value,  s.value = n >= 0, may be used to 
+     represent n IDENTICAL resources.
+
+(2). Processes acquire/release ONE resource at a time by 
+
+               P(&s);  
+                     *****************
+                     * use resource; *
+                     *****************    
+               V(&s);
+
+
+Assume: P1, P2, P3, P4, all trying to use the resource.
+
+P1: P(s): s.value-- = 0   ==> P1 does NOT block, so P1 is USING the resource.
+P2: P(s): s.value-- = -1  ==> P2 blocks in s.queue = P2
+P3: P(s): s.value-- = -2  ==> P3 blocks in s.queue = p2->P3
+P4: P(s): s.value-- = -3  ==> P4 blocks in s.queue = P2->p3->p4.
+----------------------------------------------------------------------------
+(3). At any time, the following invariant holds:
+
+                if (s.value >= 0)
+                    s.value == number of available resources;
+                else
+                    |s.value| == number of waiters in s.queue;
+----------------------------------------------------------------------------
+NOW, assume: P1 finishes using the resource: 
+P1: V(s): s.value++ = -2 ==> P1 UNBLOCKs P2 from a.queue = P3->p4
+P2: using the resource
+
+When P2 finishes, it will do V(s) to unblock P3, etc.
+
+              DIFFERENCE BETWEEN P/V  and sleep/wakeup:
+------------------------------------------------------------------------------
+     P(s);                       |  if (resource NOT available) sleep(event);
+(1). When a process passes P(s), |  When a process wakes up from sleep(),
+     it it guaranteed to have    |  it does NOT have the resource ==> the 
+     resource                    |  process MUST try again.
+-------------------------------------------------------------------------------
+(2). The order of P,V do NOT     |  A process MUST sleep first before another
+     matter                      |  process tries to wake it up. 
+-------------------------------------------------------------------------------
+(3). P(), V() are ATOMIC         |  (resource NOT available) MUST be set, tested
+                                 |  by one proc at a time 
+-------------------------------------------------------------------------------
+
+4-3. MORE EXAMPLES:
+
+(1). The Producer-Consumer Problem:
+     A set of Producer processes share a finite set of buffers with another
+     set of Consumer processes.  As implied by their names, Producers produce
+     data items for Consumers to consume. They operate as follows.
+
+              Producer:             |           Consumer:
+     ---------------------------------------------------------------------
+     while(1){                      |    while(1){
+       produce an item;             |       .............................;
+       WAIT for empty buffer cells; |       WAIT for full buffer cells;
+       put item into a buffer cell; |       get an item from a buffer cell;
+       ........................;    |       consume the data item;
+     }                              |    { 
+     ---------------------------------------------------------------------
+
+     Initially, all buffer cells are "empty". When a Producer puts an item 
+     into an "empty" cell, the cell becomes "full". When a Consumer gets an 
+     item from a "full" cell, that cell becomes "empty", etc.
+
+     Naturally, each cell can only contain ONE item at a time. A producer must
+     WAIT if there are no empty cells. Similarly, a Consumer must WAIT if 
+     there are no "full" cells. Furthermore, WAITing process should be allowed
+     to continue (in an ordered manner) when their awaited events occurr.
+
+        **************************************************************
+         NOTE the similarity between this problem and the Unix Pipes.
+        **************************************************************
+     
+     Here, we present a solution to the Producer-Consumer problem using 
+     semaphores.
+
+          DATA buf[N];              /* N buffer cells  */
+          int  head, tail;          /* initially 0        */
+
+          SEMAPHORE  empty;         /* empty.value = N */
+          SEMAPHORE  full;          /* full.value  = 0    */
+          SEMAPHORE  pmutex;        /* pmutex.value  = 1    */
+          SEMAPHORE  cmutex;        /* cmutex.value  = 1    */
+                                    /* all semaphore queues initially empty */
+
+         Producer:                          Consumer:
+    ----------------------------------------------------------------
+    while (1){                 |    while(1){           
+       produce an item;        |         ...................;
+       P(empty);               |         P(full);
+        P(pmutex);             |           P(cmutex);
+          buf[head++] = item;  |              item = buf[tail++];
+          head %= N;           |              tail %= N;
+        V(pmutex);             |           V(cmutex);
+       V(full);                |         V(empty);
+       ................;       |         /* consume the item */
+     }                         |    {
+    ----------------------------------------------------------------
+    JJ: The above does not work in practice
+        What if consumer dies?  Why is producer still producing?
+        What if the producer dies?  Consumer, why are you waiting?
+    
+(2). The Reader-Writer Problem:
+     A set of Reader and Writer processes share a common database, e.g. 
+     a file.  The requriements are:
+
+     An active Writer must exclude all others. However, Readers should be
+     able to access the database concurrently as long as there is no active 
+     Writer.
+   
+     Shown below is a solution to the Reader-Writer Problem using semaphores.
+
+          SEMAPHORE  wsem = 1,   rsem = 1;
+          int readers = 0  /* number of active Readers */
+ 
+  ------------------------------------------------------------------    
+   ReaderProcess                |        WriterProcess  
+   {                            |        {
+     while(1){                  |           while(1){
+       P(rsem);                 |             P(wsem);
+         readers++;             |               /** write data **/
+         if (readers==1)        |             V(wsem);
+            P(wsem);            |           }
+       V(rsem);                 |        }       
+                                |
+         /* read data */        |
+                                |
+       P(rsem);                 |
+         readers--;             |
+         if (readers==0)        |
+            V(wsem);            |  
+       V(rsem);                 |
+     }                          |
+   }                            |
+   ----------------------------------------------------------------
+   JJ: semaphore is much better solution than sleep/wake
+       much shorter too!
+       KC's OS allows for parallel reading (it's safe, why not?)
+
+4-4. With an initial value of 0, a semaphore is usually used to convert an 
+     interrupt into a wakeup call to a (handling) process.
+
+5. Use semaphores to implement other synchronization mechanisms,
+   e.g. resource managers, message passing, Monitor, etc.
+
+==============================================================================
+JJ: What is deadlock and how do you deal with it.
+    Many operating systems lock to allow only one to proc to access kernel
+    If multiple processes are cross locking 
+    pipe read/write is 2 proc, not 1 so you don't accidently wait on yourself (lock yourself out)
+
+6. MISUSE of Semaphores and Related Problems:
+
+   As shown above, semaphores are convenient and powerful tools for solving
+   process synchronization problems.  Complete Operating systems have been
+   built based on semaphores.  However, as any other tools, improper use of 
+   semaphores can also lead to problems.
+
+6-1. DEADLOCK:
+(1). First, consider the following:
+
+                   SEMAPHORE s1=1, s2=1;
+
+         Pprocess Pi:                  Process Pj:
+      ----------------------------------------------
+           P(s1);           |              P(s2);
+           .........        |              ........
+           P(s2);           |              P(s1);
+           .........        |              ........
+      ----------------------------------------------
+      JJ: Cross lock!
+
+   As shown, Pi occupies semaphore s1 and requests semaphore s2, which
+   may already be held by Pj.  While holding s2, Pj requests s1, which is
+   already held by Pi. They mutually wait for the other to do something,
+   which will never happen. Thus, they have become DEADLOCKed.
+
+(2). DEFINITION:
+     DEADLOCK is a situation in which a set of processes are engaged in 
+     a mutually waiting condition, which can only be broken up by the 
+     processes themselves in the set. 
+
+(3). Necessary Conditions for Deadlock:
+
+     In order for deadlocks to occur, the following conditions MUST be true:
+
+ C1: . Mutual Exclusion : guys fight over girls; either you or me!
+ C2: . Inconsiderate    : hang on to whatever you already got, never give away.
+ C3: . Greedy           : already got something but wants MORE!
+ C4: . Circular Waiting : you only love Lucy, who only loves Paul, who only 
+                          loves Betty, who only loves you ==> HOPELESS!
+JJ: All preventable!
+
+
+6-2. HOW TO DEAL WITH DEADLOCK?
+
+(0). Professor Tanenbaum's famous "turkey algorithm":
+     Hide your head in the sand and pretend there is no such a problem. 
+     Of course, you don't want to be a turkey. So, learn the following:
+
+JJ: if you always go the same direction, then you are guarenteed not to have a circle
+    so there cannot be deadlock
+
+(1). Prevention: (is the key, carefully design alg! not avoidence and whatnot)
+     Similar to dealing with diseases, the best way to deal with deadlocks 
+     is "prevention".  We may do this by eliminating ANY of the above 
+     Necessary Conditions.  However, not every such conditions can be
+     eliminated from a real system. For example, it's impossible to eliminate
+     C1, and it may be too costly to eliminate C2. So, the only vivable 
+     choices are C3 and C4.
+
+     The opposite of C3 is "Total Allocation", in which every process must 
+     obtain ALL the resources it needs BEFORE it runs. With "Total Allocation",
+     it is obvious that there won't be any deadlock.
+
+   To defeat C4, we may rank the resources (semaphores in the current context)
+   as R1, R2, .... Rn, and enforce the following rule (which can be checked at
+   run-time):
+
+      A process can only request the resources in a decreasing ranking order,
+      i.e. if a process has reequested Ri, it can only request Rj for j &lt.i,
+      but NOT any Rj for j &gt. i.
+
+   Using this scheme, it is easy to prove (by induction) that there won't be
+   amy loops in the requests, hence no chance of deadlock.
+
+
+(2). Avoidance: The basic principle is as follows.
+
+   For each and every resource request, PRETEND to grant the request and 
+   evaluate the resulting situation. If the resulting situation is SAFE, which
+   means the system has at least one way of completing all the processes, then
+   actually grant the request.  Otherwise, reject the request. As an example,
+   consider the following.
+ 
+   Assume : 10 (units of the same type of) resources.
+             3 Processes [p1, p2, p3], each declares a Max. number of resources
+               it needs: [m1, m2, m3] = [6, 5, 8], where each mi <= 10.
+
+   The following table shows the initial system state
+
+          State:         S0
+               Max.   Has  Need  
+           =====================
+           P1   6      0     6
+           P2   5      0     5
+           P3   8      0     8
+          ======================
+           Available: 10
+
+    which is clearly SAFE (because we may choose ANY process, let it run to 
+    completion, then choose another process and let it run to completion, etc.)
+
+    Assume the system is in the state S1, as shown in the right-hand side of
+    the following table.
+     
+          State:         S0          S1
+               Max.   Has  Need   has   need
+           =====================|------------
+           P1   6      0     6  |  1     5
+           P2   5      0     5  |  2     3
+           P3   8      0     8  |  3     5
+          ======================|------------
+           Available: 10           4
+
+    S1 is SAFE because we my let P2 run to completion first, and then let 
+    either P1 or P3 run to completion.
+
+    While in the state S1, assuming that P1 requests 3 additional units of
+    resources. Should we grant this request of P1?  First, PRETEND to grant it.
+    The resulting state is S2:
+  
+          State:         S0          S1           S2
+               Max.   Has  Need | has   need | Has   Need 
+           =====================|------------|============
+           P1   6      0     7  |  1     6   |  4     2
+           P2   5      0     5  |  2     3   |  2     3
+           P3   8      0     8  |  3     5   |  3     5 
+          ======================|------------|===========-
+           Available: 10           4            1
+    
+    The state S2 is UNSAFE because, with only 1 available resource, if any
+    process makes another (Need) request, we would be stuck, resulting in a 
+    deadlock. Therefore, the request should be rejected. 
+
+    In contrast, if P1 only requests 1 additional unit, the request can be
+    granted because the resulting state is SAFE (Verify this).
+
+    Thus, the algorithm starts from a SAFE (initial) state and moves ahead 
+    only if the next state is SAFE. The algorithm can be generalized easily 
+    to handle multiple (n) types of resources. In this case, each entry in 
+    the state table becomes a row vector of size n instead of a scalar.
+
+
+                  COMMENTS on Banker's Algorithm:
+
+   Despite its (theoretical) elgance, Banker's algorithm is impractical for 
+   the following reasons:
+
+   First, in a real system, especially in an interactive system, it is almost 
+   impossible to know HOW MANY resources a process will ever need. Without 
+   this information, the algorithm can't even start.
+
+   Second, for m processes and n resource types, the computational complexity
+   of Banker's algorithm is proprional to nXm**2, which must be invoked once 
+   for each resource request, which would incur too much system overhead, 
+   which would turn a rabbit into a snail.
+
+   Third, the algorithm is overly conservative. Note that an UNSAFE state only
+   has the potential of deadlock but may NOT always lead to a deadlock. For
+   instance, in the above example, even in the UNSAFE state S2, if either P2 or
+   P3 releases one of its resources, the system would become SAFE. Since we 
+   cannot predicat the process behavior, the algorithm simply assumes that such
+   "good things" will never happen.
+                  
+   To my knowlesge, hundreds of PhD thesis in Computer Science were written on
+   Banker's algorithm but NOT even one real system has ever used the algorithm.
+
+(3). Detection and Recovery: 
+     Allow the system to run, with possibilities of deadlocks, but try to
+     detect deadlocks when they occur AND then take remedial actions to break 
+     up the deadlock.
+
+     Recall that a deadlock is a condition in which a set of processes is 
+     engaged in a circular waiting pattern, which can ONLY be broken by the 
+     processes themselves in this set. In other words, every process involved 
+     in the circular waiting HAS NO OTHER WAY OUT. The "no other way out" 
+     property is a MUST for deadlock to occur. For example,
+
+        A waits ONLY for B, which waits ONLY for A, is a deadlock. However, 
+        A waits ONLY for B, which waits for A or C, may NOT be a deadlock 
+        because B may proceed via C. So, circular waiting is only a necessary,
+        but not sufficient, condition for deadlock. A set of deadlocked
+        processes may contain many circular waiting loops.)
+   
+     Deadlock detection amounts to checking for such a condition among some 
+     of the processes. The problem can be formulated in terms of a RESOURCE 
+     ALLOCATION GRAPH.
+
+     Assume : Resources r1,r2,..rn are all distinct, and process can only
+              wait for one resource at a time. 
+     Construct a directed graph G as follows:
+
+        1. Nodes = {r1,r2,..,rm,  P1,P2,..,Pn};
+        2. Add an arc (ri, Pj) iff ri is allocated to (and held by) Pj.
+        3. Add an arc (Pj, rk) iff Pj is waiting for rk.
+
+     Then, every closed loop in the graph G represents a deadlock.
+
+     Example. Assume: P1 has r1 and waits for r2;
+                      P2 has r2 and waits for r3;
+                      P3 has r3 and waits for r2;
+     The corresponding graph G is
+                
+           r1 --&gt P1 --&gt r2 --&gt P2 --&gt r3 --&gt P3
+                         |                     |
+                         |&lt---------------------
+
+     which shows that P2, P3 are in a deadlock.
+
+     The above technique can also be extended to handle resources with 
+     multiple copies.
+
+     Once a deadlock is detected, the processes involved in the deadlock,
+     as well as the resources that cause the deadlock, are also known.
+     Recovery from deadlock can be done by aborting some of the processes 
+     involved in a deadlock to allow others to proceed.
+
+7. LIVELOCK:
+     A set of processes mutually cause others to proceed BUT they all run in
+     circles doing nothing logically useful. From the processes point of view,
+     they are all running.  From the user point of view, they are running for
+     nothing. You may wonder how can this happen? Can you think of any example
+     of livelock?
+
+8. STARVATION:
+     Starvation is a condition in which a process waiting for resources may be
+     "blocked" indefinitely. For example, if the semaphore queue is a priority
+     queue, then some processes may wait in the queue "forever" or "starve".
+     A fundamental cause for starvation to occur is "unfair competition"; some
+     big bully always steps in front of you while you are waiting in line. 
+     HOW TO prevent starvation? Think about it.
+
+   QUESTION: The above solution to the Read-Writer Problem has a flaw:
+                 "Readers can starve Writers".
+   TRY THIS: Modify the algorithm so that there is NO starvation.
+
