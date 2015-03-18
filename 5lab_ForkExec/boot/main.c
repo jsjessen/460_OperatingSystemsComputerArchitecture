@@ -72,7 +72,7 @@ int main()
     INODE *ip;
     u16 i, ino;
     //char os_name[MAX_NAME_LENGTH] = "my_mtx";
-    char* os_name = "my_mtx";
+    char* os_name = "jj_mtx";
 
     // Get group descriptor
     get_block((u16)GROUP_DESCRIPTOR_BLOCK, buf1);
