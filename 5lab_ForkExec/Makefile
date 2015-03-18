@@ -67,6 +67,7 @@ KERNEL_OBJ_DIR := $(OBJ_DIR)
 KERNEL_OBJECTS := $(addprefix $(KERNEL_OBJ_DIR)/, \
 				 ts.o wait.o kernel.o vkernel.o int.o main.o)
 
+# Decided to use the verbose but explicit method instead
 # Specifies a list of directories that make should search
 #VPATH := $(BOOT_DIR) $(LIB_DIR) $(USER_DIR)
 
