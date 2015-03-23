@@ -1,0 +1,158 @@
+                  EECS 460 NOTES on Interrupts.
+
+1. Interrupts are EXTERNAL signals from devices to CPU, requesting for service.
+
+2. Intel CPU:  
+     2 binary interrupt request lines: NMI (Non-Maskable Interrupt) and INTR:
+              asserted to logical 1 if a request is present.
+ 
+     The CPU always accepts any NMI request, hence the name NMI.
+
+     For INTR requests, the CPU may mask it out as follows:
+     CPU.flagReg.I  bit = 0 ===> keep INTR pending
+                          1 ===> may accept INTR now
+   
+     CLI/STI instructions clear/set the I bit.
+
+3. Interrupt Routing:
+   In Intel-based PCs, interrupts are setup as shown below.
+
+                           -------- 
+       (timer)   IRQ0      |      |            ------- 
+       (KBD)     IRQ1      |      |            | CPU:|
+ SLAVE_8259 ===> IRQ2      |      |   INT      |     |
+       (port2)   IRQ3 ====>| 8259 |----->----> |INTR |
+       (port1)   IRQ4      |      |            |     | 
+       (HD)      IRQ5      |      |<--ACK----- |     |<---NMI request
+       (FF)      IRQ6      |      |            |-----|
+       (printer) IRQ7      | 0x20 = CNTL reg)
+                           | 0x21 = MASK reg)
+                           --------
+
+    Among the IRQ's, IRQ0 has the highest priority. The 8259 is a dog-fight 
+    box, where the top-dog (highest priority IRQ) emerges, i.e. the smallest 
+    IRQn is sent to the CPU's INTR.  The 8259 has an
+              INT_CNTL register at  0x20
+              INT_MASK register at  0x21  
+    Their roles are explained below.
+    ==============================================================
+    In 32-bit PCs, a slave 8259 is added BEFORE the master 8259. The
+    slave's INT request is fed to the IRQ2 of the master 8259. 
+    Its registers are at 0xA0, 0xA1.  The added IRQs are known as
+
+              IRQ8 = real-time clock
+              IRQ9 = re-directed IRQ2
+              IRQ10-12 = general use
+              IRQ13=FPU
+              IRQ14=IDE channel 1 (HDs)
+              IRQ15=IDE channel 2 (CDROMs)
+
+    ============================================================== 
+
+    Each 8259 has a                  
+              INT_CNTL    register at 0x20     (Slave : 0xA0)
+              INT_MASK    register at 0x21     (Slave : 0xA1) 
+
+   (1). Consider the Master 8259 only. 
+        First, the INT_CNTL register emable/disable ALL IRQs. 
+        Second, with INT_CNTL == enabled (0x20), each individual IRQn
+        (n = 0 to 7) can be selectively enabled/disabled by the INT_MASK 
+        register:  IRQn is enabled if and only if
+                   bit n of INT_MASK register == 0;
+                   (bit n == 1 means IRQn is disabled)
+  
+   (2). After an interrupt IRQi, the 8259 automatically "mask out" all IRQj
+        of the same or lower prioirty. The SOFTWARE interrupt handler must
+        explicitly re-enable the 8259 again by writing
+
+         0x20  to the INT_CNTL register (at 0x20 or 0xA0)
+
+        Otherwise, no further interrupts (of the same or lower priority) can 
+        occur again.
+
+4. Priority, enable/disable maskIn/maskOut:  
+
+   The above INFO is repeated here once again.
+  
+(1). The 8259 orders the interrupt requests from IRQ0 (highest) to IRQ7 
+     (lowest). Each IRQ level yields a VECTOR Number = IRQn + 8
+
+(2). It can be programmed (by writing into its control register) to 
+     enable/disable any of the 8 interrupts. The I/O location 0x21 is the 
+     INT Mask Register. A 0 at bit n enables IRQn, a 1 disable IRQn.
+
+(3). When interrupt requests occur (at its IRQi lines), the request with the 
+     highest priority is routed to INTR of the CPU.  Meanwhile, it blocks out 
+     any interrupt requests of the same or lower level BUT it will route any 
+     higher lever requests to CPU.
+
+(4). CPU: Even though INTR may be asserted, the CPU will not accept the request
+     until its flagReg.I bit is 1.  While the flagReg.I bit is 0, INTR will 
+     remain Hi, keeping the request pending.
+
+5. Interrupt Processing:
+   When an interrupt IRQi occurs, the CPU will start interrupt processing (at 
+   the end of current instruction) if its I bit is 1.
+ 
+   (1). CPU issues an INT_ACK signal to 8259 (asking for interrupt ID).
+   (2). The 8259 spits out a byte value, called a VECTOR, to the data bus,
+        allowing the CPU to read the vector value, which is IRQi+8, (which can
+        be changed by programming the 8259 but we will use the default value).
+
+   (3). After acquiring the vector n, the CPU's actions are identical to
+        those of INT n, i.e. it first pushes [flag, CS, PC] onto the CURRENT
+        stack, (changes flag's T and I bits to 0), load [PC,CS] from vector
+        locations [4*n, 4*n+2], and continues execution from the new [PC,CS].
+
+    Example:   
+    Suppose we want to handle timer interrupts, IRQ0, in our MTX kernel. We 
+    must do as follows:
+
+    (1). Make sure IRQ0 is "un-masked", i.e. bit0 of 5259's mask register 
+         (0x21) is cleared to 0. If not, write to the IO port 0x21 to clear
+         that bit. (For convenience, a function enable_irq(IRQ) is provided).
+
+    (2). Install timer handler to vector #8: Write 
+                [ _tinth, 0x1000 ] to [4*8, 4*8+2]. 
+         where _tinth() is the entry point of timer interrupt handler, similar
+         to _inth() for INT 80 which we used for syscalls. As before. these can
+         done by    put_word(W, 0x0000, offset);
+
+    (3). With (1) and (2), timer interrupts will occur immediately. 
+         If we do not want to accept these interrupts yet, we can mask them out
+         by CLI (which clears the I bit), and STI when we are ready to handle 
+         them.,  Again, for convenience, the functions lock()/unlock() can be 
+         used to CLI/STI. 
+ 
+    (4). Once execution begins from _tinth() in OUR kenrel, we must have a
+         kernel mode stack to support the interrupt processing. Details will be
+         given in the TIMER LAB assignment. 
+
+6. Motorola 680xy
+    A 680xy CPU has 3 (binary) interrupt request input lines, which may be 
+    regarded as a single DECIMAL request INTR with values ranging from 0 to 7;
+    0 means no INTR,  1 to 7 means an INTR of that level. The CPU's status 
+    register also has a 3-bit "(interrupt) priority level" field, which can be
+    set to 0 to 7 by software. INTR = 7  behaves as NMI, i.e. an INTR 7 is 
+    accepted immediately. When an INTR = 1 to 6 occurs, the CPU will accept the
+    request only if its PS.priority value is less than the INTR value. The CPU
+    can raise or lower its own PS.priority while in K mode, thereby maskIn/out
+    any level of interrupt requests.
+
+    When the CPU accepts an INTR, say at level 5, it saves old PS PC on sstack,
+    changes PS.priority to that of INTR, i.e. also 5, which effectively maskOut
+    any further requests at level 5 or lower.  As long as the level-5 handler 
+    routine does not change PS.priority, CPU will run at level 5. While at 
+    level 5, it will accept any reuest of level 6 (naturally 7 also) but not 
+    any requests at level-5 or below.  Such interrupts may occur (from their 
+    devices) but they will be kept pending until they become higher than the
+    CPU's priority.
+
+    Assume 7 Devices, each has an Interface, which can generate an IRQ.  
+    Fed these IRQs as inputs to 1,2,3,4,5,6,7  of  an 8-to-3 priority encoder,
+    e.g. the 74183 IC. The 3-line outputs of the 74183 can be fed to the INTR 
+    lines of the 680xx CPU.
+
+    To support more interrupts, simply use more encoders.  To the CPU, there 
+    is only ONE interrupt request but with a (decimal) value of 1 to 7.  
+    In contrast, the Intel CPU also sees ONLY one binary INTR (and an NMI).

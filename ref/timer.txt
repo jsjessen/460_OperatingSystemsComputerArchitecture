@@ -1,0 +1,293 @@
+<Title>560 Class Notes</Title>
+<Body bgcolor="#00cccc" text="#000000">
+<H1>460 Notes on Timer</H1>
+<Pre>
+          460 NOTES on TIMER and Assignment 
+
+0. BACKGROUND:  NOTES on Interrupts
+
+1. PC's timer:
+   PC's timer has 3 independent channels, which are
+        Channel 0: programmable interval timer;
+        Channel 1: used for DRAM refresh;
+        Channel 2: connected to on-board speaker;
+   The channel 0 timer has a base frequency of 1193182 Hz. It can be programmed
+   to generate a timer interrupt once every 1/60 of a second (commonly known 
+   as one clock tick).  It interrupts at IRQ0 (vector 8).
+
+2. The code shown below initializes the timer.
+
+============================================================================
+/* Timer parameters. */
+
+#define LATCH_COUNT     0x00	/* cc00xxxx, c = channel, x = any */
+#define SQUARE_WAVE     0x36	/* ccaammmb, a = access, m = mode, b = BCD */
+				/* 11x11, 11 = LSB then MSB, x11 = sq wave */
+#define TIMER_FREQ   1193182L	/* clock frequency for timer in PC and AT */
+#define TIMER_COUNT ((unsigned) (TIMER_FREQ/60)) /*initial value of counter*/
+
+#define TIMER0       0x40
+#define TIMER_MODE   0x43
+#define TIMER_IRQ       0
+
+#define INT_CNTL     0x20       /* 8259 interrupt control register */       
+#define INT_MASK     0x21       /* bit i = 0 means enable interrupt i */ 
+
+/*==========================================================================*
+ *				enable_irq				    *
+ *==========================================================================*/
+int enable_irq(irq_nr) ushort irq_nr;
+{
+  /* Assume IRQ 0-7 ONLY. Clear the corresponding 8259 interrupt mask bit. */
+  out_byte(INT_MASK, in_byte(INT_MASK) & ~(1 << irq_nr));
+}
+
+int tick,sec,min,hr;                    /* Wall clock */
+
+/*===========================================================================*
+ *				timer_init				     *
+ *===========================================================================*/
+int timer_init()
+{
+ /* Initialize channel 0 of the 8253A timer to 60 Hz. */
+
+  tick = sec = min = hr = 0;            /* initialize wall clock to 0 */
+  out_byte(TIMER_MODE, SQUARE_WAVE);	/* set timer to run continuously */
+  out_byte(TIMER0, TIMER_COUNT)         /* load timer low byte */
+  out_byte(TIMER0, TIMER_COUNT >> 8);	/* load timer high byte */
+  enable_irq(TIMER_IRQ);                /* enable timer interrupts */
+}
+=============================================================================
+
+
+3. timer_init() initializes and starts the timer. Once started, it will 
+   interrupt (at IRQ0 or vector 8) once every 1/60 seconds. To handle such 
+   interrupts, a timer interrupt handler MUST be installed BEFORE starting
+   the timer.
+
+4. Stack for Interrupt Processing:
+
+   (1). Timer interrupt may occur anywhere, i.e. either in Umode or in Kmode.
+        Interrupt processing must be performed in Kernel. 
+
+   (2). When a timer interrupt occurs, the CPU saves [flag, CS, PC] of the 
+        interrupted point into the CURRENT stack. Then it follows the vector #8 
+        contents to continue execution from
+                    [_tinth, 0x1000]
+        in the MTX kernel. At this moment, all other CPU registers are still
+        those of the interrupted point.  Similar to _int80h, we may let _tinth 
+        save all CPU registers into the CURRENT stack.
+
+        Then a decision must be made in order to set up the correct execution
+        environment:
+
+        (a). If the CPU was in Umode, we MUST change DS,SS,ES to kernel's
+             segment (0x1000), save the interrupted Umode SS,SP, and establish
+             a kstack, then call a C handler function (as we did for INT 80) to
+             continue processing the interrupt.
+
+             In this case, the situation is exactly the same as that when the 
+             task enters Kmode via INT 80. So, we may save the interrupted
+             (SS, SP) into (proc.uss, proc.usp), and use the task's kstack
+             from scratch (i.e. let sp -> High end of prunning proc's kstack[]).
+
+        (b). However, if the CPU was in Kmode, then there is no need to change 
+             DS,SS,ES since they are already at 0x1000, and (more importantly) 
+             we must continue to use the running proc' kstack AS IS since it 
+             already contains the (saved) interrupted point.
+
+        How do we know which mode the CPU was in before the interrupt?
+           
+                  Listen to my lecture !!!! 
+
+   While processing an interrupt, execution is in Kmode so that CS=DS=SS=ES=
+   0x1000 and stack is the running proc's kstack[ ]. 
+   
+   (4). call thandler() in C, which IMPLEMENTS the actual timer interrupt
+        processing, i.e. it may update time count, display wall clock, start 
+        timer-dependent work, etc, including
+       
+           switch process !!!! but before switching to another process,
+           it must re-enable the 8259 by writing 0x20 to port 0x20.
+             
+           If a process switch occurs, the running proc's resume point is
+           saved in its kstack, as it should.
+
+   (5). When thandler() finishes, _tinth returns to the interrupted point by
+        _treturn: 
+              cli                          ! mask out interrupts
+
+              if (was in Umode){ 
+                 restore interrupted (SS,SP);  // from proc.uss, proc.usp
+              }
+
+              pop registers in reverse order
+              iret 
+
+   NOTE: For nested interrupts, the first interrupt may occur in Umode, but
+   any subsequent interrupts MUST occur in Kmode (i.e. in the middle of 
+   handling an interrupt). In the latter case, we continue to use the proc's
+   kstack to save interrupted point and then return to the interrupted point.
+   Therefore, our scheme can handle nested interrupts (of upto 15 levels).
+   Of course, each task's kstack[] must be big enough to contain upto 15
+   layers of saved interrupted points AND their stack frames (i.e. calling 
+   chain and local variables, etc).
+   
+
+5. Implement Timer in MTX:
+
+   Simliar to INT80 interrupts, the steps are:
+
+   (1). Mask out ALL interrupts (by CLI or a given lock(), which issues CLI).
+
+   (2). Initialize MTX kernel as before. Create P0 and let P0 kfork P1 with a
+        Umode image. In kfork(), set the SAVED flag register to 0x0200 (so that 
+        the proc will run with interrupts masked in even in Kmode).
+
+   (4). Set interrupt vectors (int80 for syscall and int8 for timer).
+        Specifically: vector80 ==> (_int80h, 0x1000)
+                      vector8  ==> (_tinth,  0x1000)
+ 
+   (5). Initialize and ENABLE the timer by timer_init(); ==> Timer interrupts 
+        will occur immediately but they are MASKed out for now.
+
+   (6). tswitch(), which will load CPU's flag register with Ibit=1 ==>
+        CPU begins to accept interrupts.
+
+
+                    ASSIGNMENT #7: TIMER for MTX 
+
+**************************  DO THESE **************************************
+1. Get HELP files:
+   samples/LAB7.timer/  contains these help files for you to start:
+   mtximage    : sample MTX with "1 second timer interrupt" message
+
+   t.c :  ADD YOUR code to install timer interrupt handler at vector #8.
+   ts.s:  Study the _inth80 and _tinth code.
+          Make sure you understand how they work.
+   timer.c : timer_init(), and timer interrupt handler thandler(), which
+             AS IS prints a message every second.
+   MODIFY thandler() for this assignment.
+
+2. Implement these timer functions:
+   (a). At each second : 
+        Display current time HH:MM:SS at the lower right corner.
+        Read my video display driver vid.c code for how.
+
+   (b). When a proc is scheduled to run, set its PROC.time to an alloted run 
+        time, e.g. 5 seconds. 
+        Decrement running's run time in Umode only!  When a proc's run time 
+        expires, switch process.
+
+         NOTE:   do NOT switch process while it's in Kmode!!! 
+         REASON: our MTX kernel is NOT a multi-processor kernel. 
+
+   (c). From Umode, add a command, sleep, which ask for a time t to sleep.
+        Syscall to MTX kernel to sleep for t seconds. The process becomes READY
+        to run again when its sleep time expires.
+      
+
+3. Timer Service
+
+    An operating system kernel usually provides the following timer services to
+processes. To simplify the discussion, we shall assume that each process can 
+only have one outstanding timer service request and the time unit is in seconds
+in real time, i.e. the "process virtual timer" runs in real time whether the 
+process is executing or not.
+
+  .pause(t) : suspend the process for t seconds. 
+  .itimer(t): if t>0, set an interval timer of t seconds. When the interval time
+              expires, notify the process. if t=0, cancel an earlier interval 
+              timer request.
+
+(1). Timer Request Queue
+
+    With only a single physical timer, timer service provides each process with
+a logical timer. This is achieved by maintaining a timer queue to keep track of
+process timer requests. A timer queue element is a structure
+
+      typedef struct tq{
+              struct tq *next;      // next element pointer
+              int       time;       // requested time
+              struct PROC *proc;    // pointer to PROC
+              int    (*action)();   // 0|1|handler function pointer
+      }TQE;
+      TQE tq, tqe[NPROC];           // tq = timer queue pointer
+      
+where action=0 means WAKEUP, 1 means NOTIFY, other value=entry address of a
+handler function to execute. Initially, the timer queue is empty. As processes
+invoke timer service, their requests are added to the timer queue. The following
+figure shows an example of the timer queue.
+
+     tq -> tqe[2] -> tqe[1] -> tqe[3] -> NULL 
+           ------    ------    ------    
+           | 5  |    |  8 |    | 17 |   (time to expire)
+           | *2 |    | *1 |    | *3 |   (*pid means &proc[pid])
+           | 0  |    |  1 |    |func|   (action) 
+           ------    ------    ------
+
+  At each second, the timer interrupt handler decrements the time field of each 
+TQE by 1. When a TQE's time decrements to 0, the interrupt handler invokes the 
+action function of the TQE and deletes the TQE from the timer queue. 
+For example, after 5 seconds, it deletes tqe[2] and wakes up process P2. 
+
+   In the above timer queue, the time field of each TQE contains the exact 
+remaining time. This has the disadvantage that the interrupt handler must 
+decrement the time field of every TQE. In general, an interrupt handler should 
+complete an interrupt processing as quickly as possible. This is especially 
+important to the timer interrupt handler. Otherwise, it may loss ticks or even 
+never finish. In contrast, when a process enters a timer request, it also 
+manipulates the timer queue but the process does not have the same kind of 
+critical time constraints. We can speed up the timer interrupt handler by 
+modifying the timer queue as follows.
+
+     tq -> TQE[2] -> TQE[1] -> TQE[3] -> NULL 
+           ------    ------    ------    
+           | 5  |    |  3 |    |  9 |   (relative time)
+           | *2 |    | *1 |    | *3 |   (pointer to proc[pid])
+           | 0  |    |  1 |    |func|   (action) 
+           ------    ------    ------
+
+In the modified timer queue, the time field of each TQE is relative to the
+cummulative time of all the preceeding TQEs. At each second, the timer interrupt
+handler only needs to decrement the time of the first TQE and process any TQE
+whose time has expired. With this setup, insertion/deletion of a TQE must be
+done carefully. For example, if process P4 makes an itimer(10) request, its TQE
+should be inserted after TQ[1] with a time=2, which changes the time of TQ[3] to
+7. Similarly, when P1 calls itimer(0) to cancel its timer request, its TQE[1] 
+will be deleted from the timer queue, which changes the time of TQE[3] to 12, 
+etc. You are encouraged to figure out the general insertion and deletion 
+algorithm.
+
+(2). Timer Queue as a Critical Region:
+
+    When implementing timer service functions, the timer queue is a data 
+structure shared by processes and the timer interrupt handler. Access to the 
+timer queue must be synchronized to ensure its integrity. In a multiprocessor 
+OS kernel, processes must access shared data structures one at a time, by using 
+"locks". MTX in real mode is a uniporcessor OS, which allows only one process to
+execute in kernel at a time. Therefore, processes in the MTX kernel cannot 
+interfer with each other, so there is no need for process locks. However, while
+a process executes, interrupts may occur. If a process is in the middle of 
+modifying the timer queue, a timer interrupt occurs, the process would be 
+diverted to executed the interrupt handler, which also try to modify the timer 
+queue. Thus, interrupt handlers may interfer with process. Note that the reverse
+is not true, i.e. process cannot interfer interrupt handler. You are encouraged 
+to figure out why? So the remaining question is: how to prevent timer interrupt
+handler from interfering a process? The answer is very simple, namely by masking
+out interrupts. Thus, the algorithm of itimer(), which manipulates the timer 
+queue to insert a timer request, is
+
+/***************** Algorithm of itimer() **************************/
+int itimer(t)
+{
+  (1). Fill in TQE[pid] information, e.g. proc pointer, action.
+  (2). int_off();   // mask out interrupts
+  (3).    traverse timer queue to compute the position to insert TQE;
+  (4).    insert the TQE and update the time of next TQE;
+  (5). int_on();    // unmask interrupts
+}
+
+The itimer() algorithm is the first example of the high-level function of a
+device driver. Design and implementation of device drivers will be the subject
+matter of the next chapter.
