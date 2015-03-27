@@ -1,3 +1,13 @@
+# Particulars
+#############
+*image
+*mtx
+booter
+samples
+!loader.o
+!diskio.o
+
+
 # C #
 #####
 
@@ -68,14 +78,3 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-
-# Particulars
-#############
-*image
-*mtx
-booter
-samples
-!loader.o
-!diskio.o
-

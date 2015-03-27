@@ -1,5 +1,10 @@
 460 NOTES on Video Display DEMO Driver
 
+KC: "Uncomment those 2 lines out so it first starts in Mono mode"
+
+JJ: When scrolling, don't forget to clear timer from memory
+    Then scroll and redraw timer in proper location
+
 1. Console Display
  
     The console display of IBM compatible PCs has many modes, ranging from the
