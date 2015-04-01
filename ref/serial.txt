@@ -227,7 +227,7 @@ int do_rx(struct stty *t)
   use bputc() to ECHO the input char to serial port // JJ: can ignore this 
 
   // COMPLETE with YOUR C code
-  // JJ: read the keyboard driver you wrote before
+  // JJ: read KC's keyboard driver to understand how  
   // if buffer full: do nothing?
   // else put char in buffer: wake up anyone waiting for char
   // set V?
