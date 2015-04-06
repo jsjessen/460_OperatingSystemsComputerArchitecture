@@ -1,0 +1,787 @@
+<TITLE>CS460 NOTES#8</Title>
+<Body bgcolor="#FFFFd8" text="#000000">
+
+<H1>CS460 NOTES on Memory Management</h1>
+
+<Pre>
+
+   As of now, our MTX can only support 8 processes with Umode images. This is
+because we have ASSUMED:
+
+     P0 does NOT run in Umode. Only P1 to P8 may run in Umode.
+     Each Umode image is a full 64KB segment, e.g. P1 is at the SEGMENT 0x2000,
+     P2 at SEGMENT 0x3000, ... P8 at SEGMENT 0x9000.
+
+1. SELF-STUDY QUESTION:
+
+   #define NPROC 17   : so that we may support 16 processes (P1 to P16) with 
+                        Umode iamges.
+   Each Umode image is 32KB, which is allocated at
+
+        SEGMENT = 0x2000 + (pid - 1)*0x800
+    
+                  PICTURE of memory map:
+
+   0x0000    0x1000         0x2000  0x2800  0x3000  0x3800  0x4000   etc
+   ----------|--------------|-------|-------|-------|-------|------------------
+   |VECTORs  |  MTX kernel  |  P1   |  P2   |  P3   |  P4   | 
+   ----------------------------------------------------------------------------
+
+                         DO THESE: 
+ 
+(1). Modify kfork("/bin/u1") when MTX starts.
+(2). Modify YOUR fork()/exec() to suit this NEW memory allocation scheme.
+
+     NOTE: not only HOW in principle, make your modified MTX work!
+
+
+2. Management of Real Memory
+
+   Presently, we have 8 procs, P1 to P8, each has a dedicated segmnet at (pid+1)
+   *0x1000 for its Umode image. Our goal here is to remove the "fixed segment" 
+   limitation, allowing more than 8 procs to run their Umode images at the same
+   time. 
+   First, when MTX kernel starts, we know that the memory area from 0x20000 to 
+   0xA0000 is FREE. When we create the process P1, we must load its Umode image 
+   file into memory. Depending on the image file size, we can dynamically 
+   allocate a piece memory from the FREE area, and load the image file into the
+   allocated area. Subsequently, 
+
+(1). when forking a child process, we allocate an image area of the SAME size as
+     the parent, and copy the images.
+
+(2). When a proc does exec(filename), if the file needs a memory size > 
+     existing Umode area size, we allocate a NEW area to load the new image and
+     releases the old image. If the fle needs a memory size < existing Umode
+     area size, we load the file into the existing area AND release the extra
+     memory area.
+ 
+(3). When a process terminates, we free its Umode memory area and return it to 
+     the FREE area.
+   
+As the procs come and go, the memory area would look like a checkerboard, as the
+following diagram shows.
+
+    0x1000        0x2000                                             0xA000
+    --------------------------------------------------------------------
+   |  MTX kernel  |   |//U/// |    |/U/|          |// U//// |         |XXXXXXXXX
+   --------------------------------------------------------------------
+                  a1          a2       a3                  a4
+                  s1          s2       s3                  s4
+
+    where each white area represents a HOLE and each U area represents an area 
+    in USE. As can be seen, they are of different sizes. To keep track of where
+    the HOLEs are (for allocation), we may use a freeMemory pointer in kernel to
+    point at a list of freeBlock data structures, as shown below.
+
+                      INITIAL freeMem List:
+       freeMem
+                     ------------------------- 
+          .--------> |nextPtr = 0            |
+                     |beginAddress= 0x2000   | begin segment address
+                     |size        = 512KB/16 | (in 16-byte units)
+                     -------------------------
+    
+
+                      DURING SYSTEM OPERATION:
+       freeMem
+                     -----------------     -----    -----         -----
+          .--------> |nextPtr    .----|--->| .-|--->| .-|-------->|-. |
+                     |beginAddress a1 |    |a2 |    |a3 |         |a4 |
+                     |size         s1 |    |s2 |    |s3 |         |s4 |
+                     ------------------    -----    -----         -----
+
+     The freeMem list represents the CURRENT FREE memory areas still available.
+
+    -------------------------------------------------------------------------
+     We assume that the Umode image of a proc must be loaded in ONE contigiuos 
+     area of memory. (Again, this is implied by the bcc linker, which generates
+     a.out intended for ONE segment. Even though bcc compiler and linker can 
+     generate a.out with separate CODE and DATA+STACK areas, we still prefer
+     the whole image be loaded in one contigious piece of memroy. This would 
+     make our memory management functions simpler).
+     ---------------------------------------------------------------------------
+
+     When a proc needs a free memory area (to fork a new proc or exec a new
+     file), it calls   
+                     segment *kmalloc(size);
+  
+     which returns a piece of free memory of the requested size pointed by the 
+     return value, which is the beginning of a SEGMNET (on a 16 bytes boundary 
+     because it's intended for loading an image file). It returns 0 if no free
+     memory can be allocated. When a proc ends (or release an old Umode image),
+     it calls
+                     kmfree(beginAddress, size);
+
+     which releases the area back to the freeMem list. 
+
+  Memory management is to implement the kmalloc()/kmfree() functions.
+
+2.   segment *kmalloc(request_size)
+     {
+         scan freeMem list for a HOLE whose size is >= request_ize):
+         if find such a HOLE at, say [ai, si]:
+            if (si == request_size){ // exactly fit
+               delete the hole from freeMem list
+               return ai;
+            }
+            // si > request_size
+            allocate request_size from HIGH end of the hole by
+            changing [ai,si] to [ai, si-request_size], and
+            return   ai + si-request_size;
+         }
+         else  // no hole big enough
+            return 0;
+     }
+
+     Since kmalloc() tries to allocate from the FIRST hole big enough for the 
+     request_size, it is called the First_Fit Algorithm, which is the most often
+     implemented algorithm in practice. For example, MTX uses this algorithm to
+     manage Umode memory for Umode process images.
+
+     Alternatively, there are also Best-Fit and Worst-Fit algorithms, which are
+     never used in practice.
+
+     Corresponding to kmalloc(), the algorithm kmfree(address, size) works as 
+     follows:  When release a piece of memory, 3 possible cases may arise, as
+     shown in the diagrams
+
+     case 1 :   ----------------------------------
+                | xxxx | yyy |to be freed | zzzz |    no adjacent hole
+                ----------------------------------     
+
+     case 2 :   ----------------------------------
+                | xxxx |     |to be freed |yyyyyy|    has a hole on the left
+                ----------------------------------
+                ----------------------------------          OR 
+                | xxxx |yyyy |to be freed |      |    has a hole on the right
+                ----------------------------------
+
+     case 3 :   ----------------------------------
+                | xxxx |     |to be freed |      |    has holes on BOTH sides
+                ----------------------------------
+
+NOTE: In the freeMem list, there are NO adjacent holes; every hole is of maximal
+      size.
+ 
+     For case 1, we create a new hole to represent the released area.
+     For case 2, we absorb the released area into its adjacent hole, making a 
+                 biger hole.
+     For case 3, we consolidate 3 holes into ONE hole, which means actually 
+                 delete a hole from the freeMem list.
+
+The REAL mode MTX implements the above memory management algorithm.
+===============================================================================
+
+               DYNAMIC MEMORY MANAGEMENT IN USER SPACE
+
+3. malloc()/free() in User Space:
+
+   The C library provides malloc()/free() for dynamic memory alloc/free of 
+   memory in the HEAP area of a Umode image.
+
+      void *malloc(int size); allocate size bytes from HEAP and returns a 
+                              pointer to the allocated memory.
+      void free(void *ptr);   free the memory area pointed by ptr, which MUST 
+                              have been returned in a previous malloc() call.
+
+3-1. When an a.out is first loaded as a user image, it looks like the following.
+                           -brk
+             --------------|---------------------
+             |code|data|bss|   stack            |
+             ------------------------------------
+     where brk at the high end of bss is the initial break mark of the image;
+     it is the also the high end of the initial HEAP area. Initially,the HEAP
+     area size is 0.
+
+3-2. malloc() in user mode ==> sbrk() or brk() syscall to kernel to expand the
+     HEAP size by sbrk(an increament value) or brk(set _brk to a spefici value).
+     Assume sbrk(4KB) only, which increases the HEAP size by 4KB. 
+     sbrk() calls kmalloc() to expand the user mode image's HEAP area by 4KB, if
+     possible (each umode image has a MAX total size limit!!!) 
+
+3-3. Assume that the image total size can be expanded by 4KB. The new image 
+     would look like the following:
+
+                            |  HEAP  |-brk
+             ---------------|--------|-------------------
+             |code|data|bsss|4KB HEAP| stack            |
+             --------------------------------------------
+
+     kmalloc() not only allocates the 4KB HEAP area but also must adjust the
+     new image, e.g. copy the OLD stack contents to the new stack area and may
+     have to adjust all the stack frame pointer.
+     How does kmalloc() work in this case?
+     (1). if can extend the image to the right by 4KB, extend it 4KB to the 
+          right. Copy old stack into new locations.
+     (2). if cannot extend at all: allocate a new memory of size=old_size+4KB,
+          copy |code|data|bass| to front of new image, copy stack to tail of new
+          image.
+     In both cases, the saved stack frame pointers in the copied stack must be 
+     adjusted to suit the new location of the copied stack.
+3-4. After obtaining a block of 4KB from kernel, malloc()/free manage the 
+     HEAP ares just like kmalloc() amd kmfree() in kernel, i.e. as variable 
+     sized partitions using the first fit algorithm.
+
+3-5. The Umode image starting (segment) address and size of a process are 
+     recorded in PROC. When a process terminates, we release its Umode image by
+
+            kmfree(PROC.segment, PROC.size); 
+
+     In contrast, free(ptr) only specifies an address but without the size info.
+     What must malloc() do when it allocates a piece of memory?
+
+3-6. As can be seen, malloc() may call sbrk() syscall to kernel to expand the
+     HEAP space. free() may alos call sbrk() syscall to reduce the HEAP size.
+  =============================================================================
+
+           Part 2: Virtual Memory and Demand-paging
+  
+1. Definition of Virtual Memroy (VM):
+
+   A  Virtual Address (VA) is an address used in a program.
+   A Physical Address (PA) is an address used to access real memory.
+
+   Virtual Memory is a scheme in which VA differ from PA, but the CPU can 
+   translate (or map) each VA into a PA.
+
+2. Segmentation:
+   A program (image) is divided into many independent parts, called segments.
+   Each segment may be loaded into a separate memory location. During 
+   execution. the CPU is told which segment to use AND where that segment is 
+   loaded at. Each VA is an offset relative to the beginning of a segment. 
+   The segment's physical address is kept in either a "segment register"
+   or a segment table known to the CPU. The CPU automatically maps each VA 
+   into a PA in memory.
+
+   Example 1: Intel 80X86 in unprotected mode: 
+
+   (1). A program (executable image) consists of 3 segments, each upto 64 KB.
+                  -----------------------
+                  | CODE | DATA | STACK | 
+                  ----------------------- 
+        Within each segment, the addresses (generated by compiler) are all 
+        relative to the beginning of that segment. For instance,
+ 
+           Instructions in the CODE segment are located at VA = 0, 2, 4, .... 
+           Data objects in the DATA segment are referenced as   0, 1, 100, ...
+           push/pop of stack always dec/inc a VA by 2, 4, 6, ......
+
+        These values are VA because they are NOT real addresses.
+
+   (2). The CPU has segment registers CS, DS, SS. To execute a program (image)
+        we first load the program segments into memory. Each segment may be 
+        loaded at a separate memory address. The CPU's CS, DS, SS must be set 
+        to the corresponding (physical) address of the loaded segments.
+
+        Assume: CODE  at 0x1000    ===>  CS = 0x1000           
+                DATA  at 0x2000    ===>  DS = 0x2000
+                STACK at 0x3000    ===>  SS = 0x3000
+        
+   (3). VA to PA Mapping:
+        During execution of this image, when CPU performs
+               fetch_instruction from PC=0x100, it used the 
+                    PA = CS<<4 + VA = 0x10100  to get the instruction.
+               mov ax, 0x200 to move a word,    it uses the
+                    PA = DS<<4 + VA = 0x20200  to get the data, etc.
+
+        This VA to PA mapping is done automatically by the CPU hardware.
+        Without this capability, it's impossible to have Virtual Memory.
+
+   (4). With CS DS,SS, the CPU only knows the beginning PA of each segment
+        but does NOT know how big each segment is. Thus it assumes that all 
+        segments are 64 KB is size. Stating in a different way, assume that
+        your program's DATA area is only 4KB, which is loaded at 0x2000.
+        Druing execution, you MAY read/write any PA in the 64 KB area from 
+        0x20000 to 0x30000-1, although you SHOULD only read/write 4 KB in that
+        segment.  The CPU has absolutely no way of preventing you from 
+        accessing PA outside your "legal" DATA area.  What does this imply in 
+        a Multiprogramming environment?  The answer is simple: nobody is safe
+        unless you allocate every segment to its max size.
+
+         
+                        Example 2: 
+
+   Some CPUs designed for Segmentation allows (upto) 256 segments. Each
+   segment is defined by a pair of Descriptors.
+
+           SegAddressDescriptor = Segment_address.
+           SegUsageDescriptor   = Segmenr_size, Access, R/W
+
+   Each loaded program image has a SegmentTable containing (upto) 256 pairs of 
+   segment descriptors. Assuming 4 bytes per entry, the SegmentTable has a size
+   of 2 KB, which may be too large to be loaded into the CPU all at once. 
+   Instead, the CPU has a SegmentBaseRegister, which points at the SegmentTable
+   (of the running process). 
+
+   Assume that the segments are numbered 0,1,2,.. 255. Each VA is of the form
+
+               VA = [Segment#, Offset]
+
+   During execution, the CPU can use the corresponding SegmentTable entries
+   to map the VA into a PA, as well as to validate the intended memory access
+   (by using the UsageDescriptor). For instance, if the PA exceeds the 
+   segment_size, it would be an invalid memory reference. Similarly, the CPU
+   can check the access field (READ_ONLY, or READ/WRITE) to ensure the intended
+   access is valid.
+   =========================================================================
+
+3. Suitability of Segmentation:
+   Segments are best suited for logical units of a program image, such as CODE,
+   DATA, STACK, PROCEDURES, CommonData, etc. (In OOP, each object may be 
+   regarded as and assigned a segment). An excellent usage of segmentation is
+   to allow processes to share segments, such as DLLs.
+
+4. Memory Mamagement for Segmentation:
+   Segments are of variable sizes. Each segment must be loaded in a contigous
+   area of memory. The most commonly used MM scheme for segmentation is
+          
+          Variable_size Partitions using the First_fit Algorithm.              
+   
+   which we already covered in class.
+==============================================================================
+
+5 Paging:
+
+  Segmentation depends on the Variable_size Partition MM scheme, which does NOT
+  use memory efficiently due to memory fragmentation (memory space consists of
+  many "holes" but none big enough for the current needs).
+
+  Paging is desinged to reduce memory fragmentation. The idea is very simple.
+  Instead of allowing variable sized segments, let all "segments" be of fixed
+  size, say 4KB each, called PAGES.  Divide the memory into "page frames",
+  each also 4KB. Then, loading pages into memory becomes trivial:
+
+  (1). Just find enough pageframes to load the pages.
+       (allocate/deallocate pageframes can be done by using a bit-map) 
+  (2). It does not matter which page is loaded to which Pageframe, as long as
+       we record them in a PageTable, which looks like the following:
+
+          VA Page#    PAgeFrameAddr    Usage
+          ------------------------------------
+             0          0x30000         RO
+             1          0x20000         R/W
+             ..............................
+
+            255         0x00000         R/W
+          -------------------------------------
+  As before, the CPU has a PageTableBase register, which points at the 
+  PageTable begin address.
+
+  Given a VA = [Page#, Offset], the CPU can use the corresponding PageTable
+  entry to translate it into a PA (as well as checking access).
+
+
+6. Large VA Space and Multi-level Paging:
+
+   The paging scheme described above is impratical because, with 256 4KB-pages,
+   every process is limited to only 1024 KB (1 MB). With 32-bit memory 
+   addressing, the address space is 4K X 1 M or 4GB, which is the max. VA
+   space a process should have.  However, there is a problem.
+
+   Assume page size = 4KB. With 4GB VA space, each process needs 1M pages.
+   Each PageTable entry is 4 bytes, so each process needs 4MB memory just for 
+   its PageTable!!
+
+   The solution to this problem is to use several levels of paging. In a
+   2-level paging scheme, each VA is divided into 3 parts:
+         
+           VA = [Page#1,  Page#2,  Offset]
+
+   The CPU first uses Page#1 in a Level-1 PageTable to find the physical
+   address of the Level-2 PageTable. It then uses Page#2 in the Level-2
+   PageTable to determine the pageFrame address. The final PA is the
+   pageFrame address + Offset.  As before, each PageTable entry can be used
+   to validate the intended memory access.
+
+   With 2-level Paging, each PageTable size is only 1KB, which can be loaded
+   into memory.
+
+                CPU's CR3 = running->pgdir
+   running                                     Physical Memory
+      |                                       ---------------
+     PROC                                     |             |
+   -------                                    |             | 
+   |     |      level-1                       |             |   
+   |pgdir|---->---------      level-2         |             |  
+   |     |     |  pg0--|----> ---------       |             |
+   |     |     |  pg1  |      |  pg0 -|------>---------------
+   -------     |       |      |  pg1  |       |4KB PageFrame| <-- offset3
+               | ...   |      |       |       |--------------
+               |       |      |       |
+               | pg1023|      |       |
+               ---------      | pg1023|
+                              ---------  
+
+
+                 10-bits 10-bits  12-bits
+    32-bit VA = |offset1|offset2| offset3 |
+
+              
+             CPU: Use CR3 to access running PROC's level-1 pageTable
+    ----------------------------------------------------------------------------
+    offset1 = index into level-1 pageTable ==> BeginAddress of level-2 pageTable
+    offset2 = index into level-2 pageTable ==> 4KB pageFrame in memory
+    PhysicalAddress = pageFrameAddess + offset3
+    ----------------------------------------------------------------------------
+    Each pageTable entry specifies   Preset=1,  R     or    RW  
+                                  notPreset=0 ==> page fault
+    ----------------------------------------------------------------------------
+
+7. DEMAND PAGING and (COMMONly known) Virtual Memory: 
+
+   In its general form, VM refers to the scheme in which VA and PA are not the
+   same. However, most people tend to use the term "Virtual Memory" to mean the
+   following:
+
+     Virtual Memory is a scheme in which the VA space of a program (or process
+     image) is much larger than the amount of real memory. The goal is to run 
+     large programs (process images) with less real memory. 
+   
+*****************************************************************************
+                       OPTIONAL READING
+         PART 2. VM on Intel x86 in 32-bit Protected Mode
+
+1. CPU Segment Registers:
+       IDTR, GDTR, LDTR: contain pointers to IDT, GDT, LDT.
+   CPU Control Registers:
+       CR3 = PageDirTable pointer
+       CR2 = PageFault linear address
+       CR1 = unused
+       CR0 = PE + other bits.  (PE=1 enables paging)
+
+   CPU Selector Registers:
+       SS, DS, SS, ES, FS, GS
+       Each Selector = 16 bites = 13 bits index into DescriptorTable
+                                  T bit: 0 for GDT, 1 for LDT
+                                  2-bit: pri level: 00=K, 11=U
+2. IDT, GDT, LDT:
+       Each is a table of 8-byte Descriptor entries (up to 8K entries)
+       Each entry =
+                   --------------------------------
+                    base  |G  |Lm |p type| base23-16
+                   --------------------------------
+                    base 15-0     |  limit 15-0 
+                   --------------------------------
+       (most important items are base and limit)  
+
+3. Linear Address:
+
+(1). VA = 32-bit.
+(2). Depenedng on Code or Data/Stack, either CS or SS/DS is used.
+     Depending on Selector.T bit=0/1, either GDT or LDT is used.
+     CPU : use (selector) as an index into GDT (or LDT) to fetch the
+           SegmentDescriptor.base = a 32-bit value.
+     LinearAddress = SegmentDescriptor.base + VA = 32-bt linear address.
+
+     Without Paging, (CR.bit31 = 0) this is the PhysicalAddress PA.
+
+4. Paging: With CR0.bit31 = 1, paging is enabled.
+
+   LinearAddress=    10       10        12
+                  -------------------------------
+                  | DIR#   | Page# |            |
+                  -------------------------------
+   This is a 2-level Paging scheme. A LinearAddress is divided into a
+   level-1 index, level-2 index, and a 12-bt offset.
+
+
+                           REMARKS
+***************************************************************************
+(1). Intel CPUs use 2-level page tables.
+(2). Are there 3 or 4-level paging machines? YES, SUN's SPARC RICS machines 
+     uses 3-level and Motorola 6803X's levels can be programmed, upto 4.
+(3). At the other extreme, MIPS R2000 uses 0-level, i.e. all translations are 
+     done through a cache buffer in the CPU.
+***************************************************************************
+
+(Continue with Intel):
+   CPU.CR3 points at the level-1 PageTable (of the running process). By
+   loading CPU.CR3 with different pointers, the PageDirTable accesses can
+   be changed.
+
+   level-1 index is an offset into the level-1 PageTable (called PageDir
+   by Intel).  Each pageTable entry is of the form:
+
+           PageTableEntry = -----------------------------------
+                            |20-bit PFrameAddress|AV|00DA00URP|
+                            -----------------------------------
+                              
+           D = Dirty, A=accessed,
+           U = User/K, R=R/W, P=Present
+  
+   Level-1 PageTableBeginAddress + level-1 Index ===> a PageTableEntry, which
+   contains the 
+                    level-2 pageTableBeginAddress.
+
+   NOTE : The level-2 PageTable may not be in memory if the level-1's P bit is
+   0. If so, the OS must load the level-2 page table in first).
+
+   Each Level-2 PabeTable is a page table (up to 1024 entries, 4K bytes)
+   in memory.  Its contents are also PageTableEntries.
+
+   level-2 PageTableBeginAddress + level-2 index  yields the  pageTableEnry.
+   If the page is present, then
+
+      PhysicalAddress = pageFrameAddress + offset.
+
+
+   While a page is in memory, its pageTableEntry's
+
+     P bit is set to indicate Present.
+     R/W bit  specifies read/write access
+     U/S bit  specifies User/Kernel mode access
+     A   bit  is set whenever accessed for R/W   (Reference bit)
+     D   bit  is set after each W.               (Dirty bit)
+
+5. CPU's TLB (Translation Lookaside Buffer):
+   To speed up the translation of linearAddresses to PA, the CPU maintains
+   recently used (pageTable index, PageTableEntry) pairs in an Associative
+   Memory, called the TLB. An Assiciative Memory is a kind of memory that
+   supports searching by "contents", rather than by address. Moreever, the
+   search is conducted on ALL memory cells in parallel, hence it's much
+   faster (and much more expensive) than conventional memory.
+
+   During a memory reference, it seraches for a match in the TLB. If found,
+   the PageTableEntry is used to generate the PA, without having to access
+   the PabeTable itself. If not found, then the needed PageTableEntry is 
+   loaded into the TLB first. Once loaded, it (hopefully) will be used for
+   a long time.
+
+   The TLB must be invalidated (flushed) whenever the PageTable changes, e.g.
+   after a process switching. Loading CR3 automatically flushed the TLB.
+
+
+6. How to set up VM:
+
+(1). Power on or Reset: CPU is in real (unprotected) mode, can only access
+     1 MB of physical memory via segment registers CS,DS,SS,ES. Each segment
+     register holds the base address of a (upto) 64 KB segment.  VA to PA
+     translation is PA = (SegmentReg)<<4 + VA.
+
+(2). While in this real mode, we can set up GDT, LDT and IDT tables in physical
+     memory containing (8-byte) entries called SegmentDescriptors. Each table
+     may contain up to 8K entries.  Load the segment registers with values, to
+     be used as Selectors.  Load the GDTR, LDGTR with the tables' base address
+     values
+
+(3). Then, write to the MachineStatusWord's PE bit (set to 1), the CPU enters
+     Protected mode.  Segment registers become segment Selectors. VA to PA 
+     translation is now governed by:
+   
+        Use Selector.Index to access Descriptor in GDT or LGT.
+        PA = Descriptor.Base + VA 
+   
+(4). Prior to (3), we may setup PageDirTable (level-1) PageTable and load
+     its address into CR3.  This PageDirTable may contain 1024 (4-byte)
+     entries, each of which points at a level-2 PageTable.  Each Level-2
+     PageTable may contain 1024 PageTableEntries, each of which maps to a
+     physical pageFrame of 4KB.
+
+     The (level-2) PageTables and their Entries are setup to match the
+     actual physical memory size.
+
+     Also Prior to (3), we may enable Paging by setting CR0.bit31 to 1.
+    
+
+(5). With (4), the PA generated at (3) is a linearAddress, which will be 
+     translated by the Paging hardware into a Physical address:
+
+        linearAddress = PageDirEntry, PageTableEntry, 12-bit_Offset
+
+
+************************** REQUIRED READING ********************************
+
+7. Demand Paging:
+
+     Each PageTableEntry has  20-bit frameAddress, 12-bit Control/status
+
+     For 486/P5 : 31-12 11---------------------0
+                          AVIL 0 0 D A C T U R P
+
+      where P = preset
+            R/W = Read/Write access
+            U/S = User/Kernel mode
+            T,C   ignore these
+            A   = accessed or Referenced
+            D   = Dirty (modified)
+     
+     If a page is not loaded (does not have a pageFrame), its P bit = 0.
+     When a process attempts to reference a page with P=0, the Paging hardware
+     generates a trap, called PageFault, The linear address that caused the 
+     PageFault is in CR2.
+   
+     Operating system: When a process traps due to a PageFault, the pageTable
+     entry can be determined from the linearAddress in CR2. It can determine
+     whether this is due to a invalid VA or an unloaded page.
+
+     Assume an unloaded page.  The needed page is in the process swap image
+     on a swap disk.  The process executes a loadPage routine of OS to fetch
+     the page into a page frame in memroy. This may incur physical disk I/O.
+     If so, the process must wait for I/O completion. (So, it may switch CPU
+     to another process).
+
+     When the needed page is loaded into a frame, the process resumes to   
+     update the pageTableEntry (address points to the pageFrame, status bits 
+     to Preset, notDirty, notAccessed, .etc.)
+
+     Then the process restarts the instruction that caused the pageFault. 
+
+8. Page Replacement Algorithms.
+
+   Fetch a new page is striaghtforward, except when all page frames are in use.
+   If so, a loaded page must be evicted to make room for the new page. This is
+   known as the Page Replacement Problem.
+
+(1). Optimal Replacement Rule:
+
+    Replace that page which will cause the fewest number of page faults 
+    in the future.
+
+    This is unrealizable because it depends on the future behavior of the
+    process.
+
+(2). FIFO algorithm:
+     The simplest to implement but has been shown to have poor performance.
+
+(3). Second Chance Algorithm:
+     Same as FIFO but give each Referenced page a second chance: If the oldest
+     page's R bit is 0, choose it to replace. Otherwise, clear its R bit to 0 
+     and continue to look for a page whose R bit is 0. If all pages' R bits are
+     1, this reduces to FIFO (but with one round of searching overhead). 
+
+(4). LRU algorithm:
+     Replace the Least Recently Used page. This calls for a timer (field) 
+     for each page in memory, which records the time whenever a page is 
+     accessed. During replacement, the page with the oldest access time is 
+     chosen for replacement. LRU is realizable but expensive.
+
+(5). Page Reference BIT:
+     Each page has a R bit, which is cleared to 0 when starts (also after each
+     replacement).  The R bit is set to 1 whenever the page is referenced.
+     Choose ANY page whose R bit is 0. The R bit is a crude approximation of  
+     the timer (or counter) field since it only reveals whether the page has 
+     been referenced or not in the last time interval, but not when. It is
+     cheaper and easier to implement. Almost ALL demand-paging systems use
+     this scheme.
+
+(6). Use R and M bits:
+     Each page has a Referenced and a Modified (Dirty) bits. 
+          (0, 0): best candidate: not Referenced, not Modified.
+          (0, 1): 2nd best : replace this page requires writing it out first.
+          (1, 0): just used but clean; probably will be used again soon.
+          (1, 1): worst candidate.
+
+(7). Use a fixed sized POOL of free pageFrames:
+     The OS maintains a certain number of free pageFrames in a free POOL. 
+     During page replacement, a victim is selected as before, but the needed
+     page is loaded into one of the frames allocated from the free pool. This
+     allows the (page faulted) process to continue as soon as possible. When
+     the victim's pageFreame is freed, it is added to the free pool for future
+     allocation.
+
+(8). Use a Dynamic Free pageFrme POOL:
+     The free pagreFrame POOL dose not have to be fixed in size.  It can be
+     maintained dynamically.  When a process releases a page, it goes to the 
+     free pool.  Whenever the free POOL reaches a low-water mark, a special 
+     process, called the pageStealer is scheduled to run, which collects the 
+     pages of idle (blocked) processes into the free pool. Page frames in the 
+     free pool are maintained in an ordered list to honor LRU. 
+
+9. Virtual Memory based File Mapping:
+   VM maps process images from (swap disks) into memory. File I/O maps file 
+   images from disks into memory.  File-mapping unifies these two concepts.
+
+   Stating this in another way, a process can include ALL the files in its
+   VA space. This is a natural (and powerful) extension of the VA concept, 
+   which may include anything a process is entitled to access. In addition to 
+   real memory, it now encompasses the file system space as well.
+
+                   File mapping example:
+/*****************************************************************/
+#include &lt;stdio.h>
+#include &lt;unistd.h>
+#include &lt;sys/mman.h>
+
+int fd;
+char *p, *q;
+int i;
+
+main(argc, argv)
+int argc; char *argv[];
+{
+  fd = open(argv[1], 0);
+  printf("fd = %d\n", fd);
+
+  /*  startAddr, nbytes, usage flags, fileDes, offset  */ 
+  p = mmap(0, 200, PROT_READ, MAP_SHARED, fd, 0);
+  printf("p=%x\n", p);
+
+  q = p;   i = 0;
+
+  while (i < 50){
+     putchar(*q);
+     q++; i++;
+  }
+}
+
+/********************** OUTPUTS *********************************/
+fd = 3
+p=40009000
+this is a test
+this is also a test
+the end
+
+
+9. Distributed Shared Memory (DSM) Systems:
+   Yet another extension of the VA space is DSM. A DSM system consists of many
+   computers in a computer network. Each individual computer is called a node,
+   which has its own CPU and local memory. The TOTAL address space of a process
+   running on any node is composed of ALL the local memories of the nodes. As
+   in a paged system, the total address space is divided into pages. At each 
+   node, pages are either LOCAL or REMOTE. When a process executes at a 
+   particular node, it may reference any of the pages in its VA space, which 
+   includes all the memories in the entire network. If a referenced REMOTE page
+   is not available at the local machine, a page fault occurs and the needed 
+   page is fetched from the remote node.
+   
+   In addition to network traffic, an immediate problem with DSM is page 
+   consistency due to the following facts. A page that is local to a node may 
+   be in use by many processes running on different nodes. So a page may have 
+   many separate copies residing in different machines. If one of the local 
+   copies gets modified, all other copies of the same page must be updated
+   as well.  Over a network, this is certainly a nontrivial problem.  This is
+   the same as the "multiple-cache coherence problem" in a multi-CPU system.
+   
+
+10. A GENERAL DEMAND PAGING MODEL:
+
+     In a multi-tasking system, demand-paging involves much more than page 
+     replacement alone.  Processes may share pages. To load a page, a process
+     must check first whether the needed page already exists. If so, it may
+     simply attatch itself to the pageframe as a user. When a pageframe is 
+     freed, it is released into the free POOL.  Using LRU, a released pageFrame
+     will be kept in the free pool for as long as possible. If a process needs
+     a page that is still in the free pool, it may re-use the page if its 
+     contents are still valid.
+
+     The VAX's MVS uses this scheme, along with the FIFO page replacement 
+     algorithm.
+
+     But this scheme is not limited to demand paging.  It is really a 
+
+           MULTI-USER CACHE MEMORY MANAGEMENT PROBLEM :
+
+     A set of processes share a finite pool of free objects (pageFrames,
+     I/O buffers, cache memory slots, etc.) Each process may behave as a 
+     READER or WRITER. As usual, READERs may use the same object concurrently.
+     WRITERs must exclude all others. In addition, usage of the objects must
+     meet the following requriements:  
+     
+     (1). Consistency  : the objects must be used in a consistent manner, e.g
+                         every free pageframe is represented by a unique
+                         free object, every disk block is represented by a 
+                         unique I/O buffer, etc. 
+     (2). Cache effect : the objects must retain their contents for re-use 
+                         until they are re-assigned, e.g. the cache effect may
+                         be improved by a replacement algorithm using LRU.

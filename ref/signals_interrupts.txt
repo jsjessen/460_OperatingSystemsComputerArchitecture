@@ -1,0 +1,247 @@
+460 Notes on Signals and Interrupts
+
+1. SIGNALS AND INTERRUPTS
+
+  First, we present a unified treatment of signals and interrupts.
+
+  Let's define:
+     A (generalized) "process" is a sequence of activities. 
+     Examples: 
+       A person (like you or me), who performs his/her daily routine chores.
+       A Unix (or MTX) process, which runs in its address space(s).
+       A CPU, which executes machine instructions.
+
+(2). An "interrupt" is an external signal delivered to a "process", causing it 
+     to do something else, called "interrupt processing". The "process" may
+     resume its normal activities after "interrupt processing" is finished.
+
+(3). EXAMPLES of INTERRUPTS:
+     The term "interrupt" can be applied to ANY "process", not just a CPU in a 
+     computer. For example, we may speak of the following:
+
+3-1 PEOPLE interrupts: 
+    While I am reading, grading, day-dreaming .... in my office, some real 
+    events may occur, as shown below:
+
+
+      Real Events      ID             Handler or Action Function
+   =================   ===   =================================================
+   Build on fire        1     Get out immediately (do NOT use elevator!!)
+   TELEPHONE rings      2     Pick up the phone to chat with the caller.
+   KNOCK on  door       3     Yell COME IN (or pretend not there).
+   Cut own finger       4     Apply band-aid or go see a doctor
+   ..............................................................
+   ===========================================================================
+
+   All these may be called PEOPLE interrupts because they divert a person from
+   his/her normal activities to do something else. Hopefully, the person will 
+   resume whatever he/she was doing earlier AFTER processing the interrupt.
+   Each interrupt is assigned a unique ID number for identification, and has a 
+   pre-installed handler function, which a person can "execute" upon receiving 
+   an interrupt. 
+
+   Depending on their origin, interrupts may be classified into 3 categories:
+        From Hardware      : Building on Fire, alarm clock goes off, .....
+        From other person  : phone call, knocking on door, ....
+        Self-inflicted     : cut own finger, upset stomach .......
+    
+   Depending on their urgency, interrupts may also be classified as
+        NMI      : Building on fire! 
+        Maskable : Knocking on door, etc.
+      
+   It is impossible to complete the above table since there are too many 
+   different kinds of PEOPLE interrupts!
+     
+3-2. PROCESS interrupts:
+     These are interrupts to a process. While executing, a process may
+     receive interrupts from 3 different sources:
+
+     From Hardware      : Control_C key from the process terminal.
+     From other PROCESS : kill(pid, SIG#), death_of_child;
+     Self-inflicted     : divide by zero, address error, illegal instruction,..
+
+   Each of these is converted to a unique ID number (called SIGNAL in Unix),
+   which is delivered to the process.
+
+   Unlike PEOPLE interrupts, which has too many kinds, we can always limit
+   the number of interrupts a process is allowed to receive. In Unix, PROCESS 
+   interrupts are called SIGNALS, which are numbered from 1 to 31, as shown in
+   < signal.h >
+
+   Correspondingly, each (Unix) PROC structure contains the following fields:
+
+         BIT signal[32];   /* 0th bit is dummy */
+         int handler[32];  /* handler functions */
+   
+   where signal[i] != 0 means the process has received an ith signal (or ith 
+   PROCESS interrupt), and
+         action[i] == 0 means DEFault function;
+                      1       IGNore  function;
+                      other   entry address to a catcher() function in U space.
+   
+   When a process is born, all signal[] and handler[] are initialized to 0, 
+   meaning default handler function (which is normally to die). A process may 
+   use the syscalls
+           signal(SIG#, action); to change its own action function for SIG#,
+                                 except for #9, which cannot be changed.
+   and     kill(pid, SIG#);      to deliver a signal SIG# to another process.
+
+   Similar to HARDWARE interrupts, a process may also mask out certain kinds
+   of signals to defer their processing. 
+
+3-3. HARDWARE Interrupts:
+     These are interrupts to a CPU. They also originate from 3 possible 
+     sources:
+          
+    From Hardware          :  Timer, I/O devices,....
+    From another Processor :  FFP, DMA, other CPUs in a Multi-CPU system.
+    Self-inflicted         :  divide by 0, protection error, INT instruction.
+
+    Recall that a CPU is always executing for a process. CPU itself does not
+    cause any self-inflicted interrupts (unless faulty); they are due to the 
+    process that is using (or MOST LIKELY misusing) the CPU. Thus, we may rule 
+    out self-inflicted interrupts from the CPU, leaving only those that are 
+    external to the CPU. Therefore, the term "interrupts" when applied to CPU 
+    usually means external interrupts. 
+   
+    HARDWARE Interrupt vectors and interrupt handlers:
+     These correspond to the table in 3-1 and the signal[]/action[] table
+     in the PROC structure in 3-2.
+
+3-4. SUMMARY and REVIEW:
+
+(1). What are Hardware interrupts, Process interrupts?
+(2). How does a process get PROCESS interrupts?
+(3). How does a process handle PROCESS interrupts?
+(4). Try to use your own words to describe "interrupts".
+==============================================================================
+
+
+2. Signals and Signal Handling in UNIX
+
+#define NSIG            32
+
+#define SIGHUP		 1
+#define SIGINT		 2
+#define SIGQUIT		 3
+#define SIGILL		 4
+#define SIGTRAP		 5
+#define SIGABRT		 6
+#define SIGIOT		 6
+#define SIGBUS		 7
+#define SIGFPE		 8
+#define SIGKILL		 9
+#define SIGUSR1		10
+#define SIGSEGV		11
+#define SIGUSR2		12
+#define SIGPIPE		13
+#define SIGALRM		14
+#define SIGTERM		15
+#define SIGSTKFLT	16
+#define SIGCHLD		17
+#define SIGCONT		18
+#define SIGSTOP		19
+#define SIGTSTP		20
+#define SIGTTIN		21
+#define SIGTTOU		22
+#define SIGURG		23
+#define SIGXCPU		24
+#define SIGXFSZ		25
+#define SIGVTALRM	26
+#define SIGPROF		27
+#define SIGWINCH	28
+#define SIGIO		29
+#define SIGPOLL		SIGIO
+#define SIGLOST		29
+#define SIGPWR		30
+#define	SIGUNUSED	31
+
+#define SIG_DFL	 0	/* default signal handling */
+#define SIG_IGN	 1	/* ignore signal */
+#define SIG_ERR	-1	/* error return from signal */
+
+1. Signals and Signal Handling:
+
+   Signals are requests sent to a process, causing it to divert its 
+   execution to do something else. Signals are also called software 
+   interrupts since they interrupt the normal execution sequence  of 
+   a process. Here are some familiar examples of using signals:
+
+   (1). Pressing the Control_C key usually causes your running program 
+        to terminate. Here is WHY? The Control_C key generates a hardware 
+        interrupt, which causes the running process to enter K mode to 
+        deliver a SIGINT (2) signal to itself. While in K mode, every 
+        process is required to check and handle outstanding signals. 
+        For most signals, the DEFAULT action taken by a process is to call 
+        the kernel's kexit(value) function to die, with value=signal#.
+
+   (2). You may use the sh command
+                nohup  a.out &
+        to run a program in the background. The program will continue to 
+        run even after you have logged out. What happened is this: 
+        The nohup command causes the sh to generate a child to execute the 
+        program as usual, but the child ignores any SIGINT and SIGHUP (1) 
+        signals. So, Control_C will not affect it. When you logout, the sh 
+        process sends a HangUP signal to every process associated with that 
+        terminal. Upon receiving such a signal, the default action of a 
+        process is again to die. However, if a process has arranged to ignore 
+        the signal, it will do just that, ignoring it, and keeps on running.
+
+   (3). Perhaps a few days later you login again and find (by ps -u UID)
+        that your process is still running. You may use the sh command
+                  kill pid   (or   kill -s sig# pid)
+        to kill it. Here is HOW: The process executing kill sends a TERMinate 
+        signal to pid, requesting it to die.  It can do so because they are all 
+        YOUR processes (with the same UID). However, the targeted process may 
+        have chosen to ignore the TERM signal and won't die. If that's the case,
+        kill -s 9  pid   will kill it for sure because processes cannot change 
+        their action for the number 9 signal. 
+
+   (4). As noted above, a process may only send signals to related processes,
+        e.g. those having the same uid. There is an exception to this. The
+        superuser (process) may send signals to ANY process. So if your 
+        stray process lingers on for too long, the superuser may kill them
+        through the kill command.
+ 
+                           A BRIEF SUMMARY:
+
+        1. Signals to a process are handled by the process itself in K mode.
+        2. Signals normally casuse a process to die. A process may alter its
+           action to ignore the signal or to handle it in a different way.
+           The number 9 signal's handler cannot be changed, which always causes
+           a process to die.
+        3. uid permitting, a process may send signals to another process.
+
+3. Signal Catcher:
+
+3-1. A process in Umode  may use
+
+    void catcher(int sig#){............}
+
+    signal(sig#, catcher) syscall to install a signal catcher for signal sig#,
+which changes the sig# handler (in PROC structure) to (the entry address of) 
+catcher() in Umode (except sig# 9, which cannot be changed).
+
+3-2. When a process gets a signal sig#:
+
+     It clears the sign# 
+     
+     It consults its sig[sig#] contents: 0 ==> default (die)
+                                         1 ==> ignore the signal
+                                         NOT 0 OR 1: MUST BE a catcher's address
+     
+     It RESETs sig[sig#] to 0 (defulat)
+     Then, it manipulates the "return path" in such a way that
+        when it exit Kmode, it goes to execute
+             catcher(int sig#){  }
+        in Umode first.
+        When catcher() finishes, it returns to WHERE IT LASTLY ENTERED Kmode.
+      
+3-3. Signal Processing in MTX
+     Demos of signal handling in MTX:
+
+     itimer
+     divide
+     segcatcher
+     demandpage
+ 
