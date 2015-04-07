@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "string.h"
 
 char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
 
@@ -89,6 +90,7 @@ void do_wait() // w
 
 int do_exec(char* filename)
 {
+    char pathname[NAMELEN + 5];
     char buf[NAMELEN];
     char *cp = buf;
     int count = 0; 
@@ -103,5 +105,8 @@ int do_exec(char* filename)
     buf[NAMELEN - 1] = '\0';
     // buf now contains a local copy of the filename
     
-    return exec(buf);
+    strcpy(pathname, "/bin/");
+    strcat(pathname, buf);
+
+    return exec(pathname);
 }

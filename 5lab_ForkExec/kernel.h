@@ -69,7 +69,7 @@ int goUmode();
 PROC *kfork(char* filename);
 int kexit(u16 exitValue);
 int fork();
-int exec(char* filename);
+int exec(char* pathname);
 
 // wait.c
 void ksleep(int event);

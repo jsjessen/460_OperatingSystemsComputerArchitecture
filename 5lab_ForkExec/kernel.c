@@ -169,20 +169,18 @@ int fork()
     return child->pid; // Parent returns child's PID
 }
 
-// a process can use exec to change image
-int exec(char* filename)
+// Change the running process's image 
+int exec(char* pathname)
 {
     int i;
     u16 segment = running->uss;
 
-    // Locate the file "filename", verify it's eXecutable, read file header
-    // to determine the TOTAL memory needed, allocate a memory area for the 
-    // NEW Umode image, then load the EXECUTABLE part of the file into memory.
-    // 
-    // The load(filename, segment) function is given. Use it as is.
+    printf("\nP%d exec %s in segment %x\n", 
+            running->pid, pathname, segment);
 
-    // load file to beginning of segment
-    load(filename, segment);
+    // Load file to beginning of segment
+    //load(filename, segment);
+    load(pathname, segment);
     // start over from new image
 
     // -------------------------------------
@@ -204,6 +202,26 @@ int exec(char* filename)
     // so main0(), tokenize, then call main() with argc/argv
     // -------------------------------------
     //
+    //
+        // write 0's to ALL of them
+        for(i = 1; i <= NUM_UREG; i++)       
+            put_word(0, segment, -i * WORD_SIZE);
+
+        put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
+
+        // Conform to one-segment model
+        put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
+        put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
+        put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
+
+        // execution from uCS segment, uPC offset
+        // (segment, 0) = u1's beginning address
+
+        // initial USP relative to USS
+        running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
+        running->uss = segment;
+    //
+    //
     // then move execution to beginning of stack
     // now executing the file
 
@@ -222,24 +240,47 @@ int exec(char* filename)
     //             -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
     //              0   1   2   3   4    5  6   7   8   9   10  11
 
-    for(i = 1; i <= NUM_UREG; i++)       
-        put_word(0, segment, -i * WORD_SIZE);
+    // Zero out PC through DI 
+    //for(i = 3; i <= 10; i++)       
+    //    put_word(0, segment, -i * WORD_SIZE);
 
-    put_word(0x0200, segment, -1 * WORD_SIZE); // Set flag I bit-1 to allow interrupts 
-
+    //put_word(0x0200, segment, -1 * WORD_SIZE); // Set flag I bit-1 to allow interrupts 
 
     // bp is stack frame pointer, each pointing to another stack frame, linked list ending in 0
-    //         (a). re-establish ustack to the very high end of the segment.
-    //         (b). "pretend" it had done  INT 80  from (virtual address) 0: 
-    //              (c). fill in uCS, uDS, uES in ustack
 
-    // Conform to one-segment model
-    put_word(segment, segment, running->usp + UDS_FROM_USP); // Set Umode data  segment
-    put_word(segment, segment, running->usp + UES_FROM_USP); // Set Umode extra segment 
-    put_word(segment, segment, running->usp + UCS_FROM_USP); // Set Umode code  segment 
+    //         (a). re-establish ustack to the very high end of the segment.
+
+    //         (b). "pretend" it had done  INT 80  from (virtual address) 0: 
 
     //              (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
     //                                         all other registers = 0;
+    //
+    // write 0's to ALL of them
+    //for(i = 1; i <= NUM_UREG; i++)       
+    //    put_word(0, segment, -i * WORD_SIZE);
+
+    //put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
+
+    ////              (c). fill in uCS, uDS, uES in ustack
+    //// Conform to one-segment model
+    //put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
+    //put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
+    //put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
+
+    //// execution from uCS segment, uPC offset
+    //// (segment, 0) = u1's beginning address
+
+    //// initial USP relative to USS
+    //running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
+
+
+
+    // Now:
+    // Flag is set to allow interrupts
+    // uCS, uES, uDS are set to the running proc's user mode segment
+    // uPC is set to 0, so execution will start from (virtual address) 0 when goUmode
+    // The rest of the registers zeroed
+
     //              (e). fix proc.uSP to point at the current ustack TOP (-24)
     //running->usp = 
     //      Finally, return from exec() ==> goUmode().

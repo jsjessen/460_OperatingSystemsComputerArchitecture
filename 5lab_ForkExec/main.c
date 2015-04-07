@@ -9,10 +9,6 @@ int color;
 char *pname[] = { "Sun", "Mercury", "Venus", "Earth",  "Mars", 
                   "Jupiter", "Saturn", "Uranus", "Neptune" };
 
-#include "wait.c"
-#include "kernel.c"
-#include "int.c"
-
 void set_vec(u16 vector, u16 handler)
 {
      //      (word, segment, offset)

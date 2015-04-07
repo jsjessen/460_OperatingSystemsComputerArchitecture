@@ -1,27 +1,14 @@
 #include "string.h"
 
-// Only accurate from -32768 to 32767
-int atoi(char* str)
-{
-    int i;
-    int value = 0;
-    int len = strlen(str);
-
-    for(i = len; i > 0; i--) 
-        value += (str[len - i] - '0') * int_pow(10, i - 1);
-
-    return value;
-}
-
-int strlen(char* str)
-{
-    int len = 0;
-
-    while(*(str++) != '\0')
-        len++;
-
-    return len;
-}
+//int strlen(char* str)
+//{
+//    int len = 0;
+//
+//    while(*(str++) != '\0')
+//        len++;
+//
+//    return len;
+//}
 
 int strcmp(char* str1, char* str2)
 {
@@ -64,6 +51,17 @@ char* strncpy(char* dest, char* source, int n)
     *dest = '\0';
     return dest;
 }
+
+// Append source to the end of dest
+//char* strcat(char* dest, char* source)
+//{
+//    char* cp = dest;
+//
+//    while(*(cp++) != '\0');
+//    strcpy(cp, source);
+//
+//    return dest;
+//}
 
 int isspace(int c)
 {
@@ -111,4 +109,17 @@ int isalnum(int c)
         return 1;
 
     return 0;
+}
+
+// Only accurate from -32768 to 32767
+int atoi(char* str)
+{
+    int i;
+    int value = 0;
+    int len = strlen(str);
+
+    for(i = len; i > 0; i--) 
+        value += (str[len - i] - '0') * int_pow(10, i - 1);
+
+    return value;
 }

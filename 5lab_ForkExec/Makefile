@@ -61,8 +61,8 @@ KC_LIB_DIR := $(LIB_DIR)/kclib_obj
 
 # Users
 USER_DIR := user
-USER1 := $(USER_DIR)/u1 
-USER2 := $(USER_DIR)/u2 
+USER1 := $(USER_DIR)/u1
+USER2 := $(USER_DIR)/u2
 USERS := $(USER1) $(USER2)
 USER_OBJ_DIR := $(USER_DIR)/$(OBJ_DIR)
 USER1_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
@@ -101,6 +101,7 @@ all: $(KC_IMAGE) $(BOOTER) $(USERS) $(KERNEL)
 	sudo cp $(OS) /mnt/boot/$(OS)
 	sudo cp $(USER1) /mnt/bin/u1 
 	sudo cp $(USER2) /mnt/bin/u2 
+	ls -la /mnt/bin
 	sudo umount /mnt
 
 $(DISK_DIR):
