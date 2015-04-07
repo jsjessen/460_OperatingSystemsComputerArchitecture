@@ -6,9 +6,23 @@ OS := jj_mtx
 VM := qemu-system-i386
 VM_FLAGS := -no-fd-bootchk
 
+# Virtual Disk Image
+DISK_DIR := ../disk
+KC_IMAGE := $(DISK_DIR)/mtximage
+JJ_IMAGE := $(DISK_DIR)/jj_mtximage
+
 SHELL := /bin/bash
 
-.PHONY : all run clean debug
+.PHONY : all run clean super_clean super_duper_clean debug
+
+################################################################
+## Colors
+################################################################
+
+NO_COLOR    := \x1b[0m
+OK_COLOR    := \x1b[32;01m
+WARN_COLOR  := \x1b[33;01m
+ERROR_COLOR := \x1b[31;01m
 
 ################################################################
 ## Definitions 
@@ -26,11 +40,6 @@ SFLAGS :=
 LINK := ld86
 LFLAGS := /usr/lib/bcc/libc.a
 
-# Virtual Disk Image
-DISK_DIR := ../disk
-KC_IMAGE := $(DISK_DIR)/mtximage
-JJ_IMAGE := $(DISK_DIR)/jj_mtximage
-
 OBJ_DIR := obj
 
 # Booter
@@ -47,6 +56,7 @@ LIB_OBJ_DIR := $(LIB_DIR)/$(OBJ_DIR)
 LIB_OBJECTS := $(addprefix $(LIB_OBJ_DIR)/, \
 				getc.o putc.o setds.o math.o string.o io.o \
 				queue.o list.o transfer.o)
+# TEMPORARY
 KC_LIB_DIR := $(LIB_DIR)/kclib_obj
 
 # Users
@@ -70,15 +80,6 @@ KERNEL_OBJECTS := $(addprefix $(KERNEL_OBJ_DIR)/, \
 # Decided to use the verbose but explicit method instead
 # Specifies a list of directories that make should search
 #VPATH := $(BOOT_DIR) $(LIB_DIR) $(USER_DIR)
-
-################################################################
-## Colors
-################################################################
-
-NO_COLOR    := \x1b[0m
-OK_COLOR    := \x1b[32;01m
-WARN_COLOR  := \x1b[33;01m
-ERROR_COLOR := \x1b[31;01m
 
 ################################################################
 ## Operating System 
@@ -117,28 +118,24 @@ $(KC_IMAGE): | $(DISK_DIR)
 ################################################################
 
 $(BOOTER): $(BOOT_OBJECTS)
-	@echo -ne "$(WARN_COLOR)"
-	@echo "=========================================="
-	@echo "Making Booter"
-	@echo "------------------------------------------"
-	@echo -ne "$(NO_COLOR)"
-	
 	$(LINK) $+ $(LFLAGS) -d -o $@
 	
 	@SIZE=$$(du -b "$(BOOTER)" | cut -f 1); \
 	if [ $$SIZE -le 1024 ] ; then \
 		echo -ne "$(OK_COLOR)"; \
-        echo -e "--------------------------------"; \
         echo -e "Booter is slim by `expr 1024 - $$SIZE` bytes"; \
-        echo -e "--------------------------------"; \
 		echo -ne "$(NO_COLOR)"; \
     else \
         echo -ne "$(ERROR_COLOR)"; \
-        echo -e "--------------------------------"; \
         echo -e "Reduce booter size by `expr $$SIZE - 1024` bytes"; \
-        echo -e "--------------------------------"; \
 		echo -ne "$(NO_COLOR)"; \
     fi
+	
+	@echo -ne "$(WARN_COLOR)"
+	@echo "=========================================="
+	@echo "Made Booter"
+	@echo "------------------------------------------"
+	@echo -ne "$(NO_COLOR)"
 
 $(BOOT_OBJECTS): | $(BOOT_OBJ_DIR)
 
@@ -156,13 +153,13 @@ $(BOOT_OBJ_DIR)/main.o: $(BOOT_DIR)/main.c $(BOOT_DIR)/bs.s $(BOOT_DIR)/ext2.h
 ################################################################
 
 $(LIB): $(LIB_OBJECTS) $(KC_LIB_DIR)/loader.o $(KC_LIB_DIR)/diskio.o
+	ar cr $(LIB) $?
+
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
-	@echo "Making Library"
+	@echo "Made Library"
 	@echo "------------------------------------------"
 	@echo -ne "$(NO_COLOR)"
-	
-	ar cr $(LIB) $?
 
 $(LIB_OBJECTS): | $(LIB_OBJ_DIR)
 
@@ -201,22 +198,22 @@ $(LIB_OBJ_DIR)/transfer.o: $(LIB_DIR)/transfer.c type.h
 ################################################################
 
 $(USER1): $(USER1_OBJECTS) $(LIB)
-	@echo -ne "$(WARN_COLOR)"
-	@echo "=========================================="
-	@echo "Making User1"
-	@echo "------------------------------------------"
-	@echo -ne "$(NO_COLOR)"
-
 	$(LINK) $+ $(LFLAGS) -o $@ 
 	
-$(USER2): $(USER2_OBJECTS) $(LIB)
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
-	@echo "Making User2"
+	@echo "Made User1"
 	@echo "------------------------------------------"
 	@echo -ne "$(NO_COLOR)"
-
+	
+$(USER2): $(USER2_OBJECTS) $(LIB)
 	$(LINK) $+ $(LFLAGS) -o $@
+	
+	@echo -ne "$(WARN_COLOR)"
+	@echo "=========================================="
+	@echo "Made User2"
+	@echo "------------------------------------------"
+	@echo -ne "$(NO_COLOR)"
 	
 $(USER1_OBJECTS): | $(USER_OBJ_DIR)
 $(USER2_OBJECTS): | $(USER_OBJ_DIR)
@@ -243,13 +240,13 @@ $(USER_OBJ_DIR)/u2.o: $(USER_DIR)/u2.c $(USER_DIR)/user.h
 ################################################################
 
 $(KERNEL): $(KERNEL_OBJECTS) $(LIB)
+	$(LINK) $+ $(LFLAGS) -d -o $@
+	
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
-	@echo "Making Kernel"
+	@echo "Made Kernel"
 	@echo "------------------------------------------"
 	@echo -ne "$(NO_COLOR)"
-	
-	$(LINK) $+ $(LFLAGS) -d -o $@
 	
 $(KERNEL_OBJECTS): | $(KERNEL_OBJ_DIR)
 
@@ -287,12 +284,12 @@ run:
 	@echo
 
 clean:
+	@echo -e "$(WARN_COLOR)Cleaning$(NO_COLOR)"
 	rm -f $(JJ_IMAGE) 
 	rm -f $(KERNEL_OBJ_DIR)/*.o
 	rm -f $(BOOT_OBJ_DIR)/*.o
 	rm -f $(LIB_OBJ_DIR)/*.o
 	rm -f $(USER_OBJ_DIR)/*.o
-	@echo -e "$(WARN_COLOR)Cleaning Complete$(NO_COLOR)"
 
 super_clean: clean
 	rm -f $(KERNEL) 

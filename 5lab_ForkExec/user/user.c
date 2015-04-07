@@ -130,9 +130,9 @@ int fork()
     }
 
     if(pid)
-        printf("parent return from fork, child=%d\n", pid); 
+        printf("Parent returns from fork, child=%d\n", pid); 
     else
-        printf("child return from fork, child=%d\n", pid);
+        printf("Child returns from fork, child=%d\n", pid);
 
     return pid;
 }

@@ -1,5 +1,6 @@
 #include "kernel.h"
 
+
 /***********************************************************
   kfork() creates a child proc and returns the child pid.
   When scheduled to run, the child process resumes to body();
@@ -10,11 +11,17 @@ PROC* kfork(char* filename)
     PROC* p;
     u16 segment;
 
+    //
+    if(!filename)
+    {
+        printf("P%d kfork failed because no file was specified.\n", running->pid);
+        return (PROC*)FAILURE;
+    }
+
     // get a first proc from freeList for child process
     if((p = delist(&freeList)) == NULL) 
     {
         printf("Cannot fork because there are no free processes.\n");
-        return (PROC*)FAILURE;
     }
 
     // initialize new process and its stack
@@ -84,65 +91,25 @@ PROC* kfork(char* filename)
         //       pop registers ===> DS, ES = segment
         //
         //       iret ============> (CS,PC)=(segment, 0) = u1's beginning address.
-    }
 
-    printf("P%d kforked child P%d at segment=%x\n",
-            running->pid, p->pid, segment);
+        printf("P%d kforked child P%d at segment=%x\n",
+                running->pid, p->pid, segment);
+    }
 
     return p;
 }         
 
-int kexit(u16 exitValue)
-{
-    int i;
-    int count = 0;
-    PROC *p;
-
-    // Look for children
-    for (i = 0; i < NPROC; i++)
-    {
-        p = &proc[i];
-
-        // Count active procs while your at it
-        if(p->status != ZOMBIE && p->status != FREE)
-            count++;
-
-        // Give any orphans to P1
-        if(p->ppid == running->pid)
-            p->ppid = proc[1].pid;
-    }
-
-    // If the dying process is P1
-    // Don't let it die unless it is just P0 and P1
-    if(running->pid == proc[1].pid && count > 2)
-    {
-        printf("\nP1 still has children and will never abandon them!\n");
-        return FAILURE;
-    }
-
-    running->exitValue = exitValue;
-    running->status = ZOMBIE;
-    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
-
-    // If parent is sleeping, wake parent 
-    if(running->parent->status == SLEEPING)
-        kwakeup((int)running->parent);
-
-    // Give up CPU 
-    tswitch();
-    printf("\nI AM BACK FROM THE DEAD\n");
-    return SUCCESS;
-} 
-
-// fork - running process creates a child process
-// parent returns child pid
-// child  returns 0
+// Fork a child process with an identical Umode image
+// Parent returns child pid
+// Child  returns 0
+// Return -1 if fails
 int fork()
 {
     int i;
     u16 child_segment;
     PROC* child;
     PROC* parent = running;
+
     // get a first proc from freeList for child process
     if((child = delist(&freeList)) == NULL)
     {
@@ -158,11 +125,11 @@ int fork()
     //---------- Kstack ---------- 
 
     // clear all saved registers on Kstack
-    for (i = 1; i <= NUM_KREG; i++)     // start at 1 to skip overwriting rPC 
+    for (i = 1; i <= NUM_KREG; i++)     // start at 1 to avoid overwriting rPC 
         child->kstack[SSIZE - i] = 0;   // all registers = 0
 
     // Create a child process such that when 
-    // it starts to run (in Kmode), it resumes to goUmode()
+    // it starts to run (in Kmode), it resumes to Umode
     child->kstack[SSIZE - 1] = (int)goUmode;       
     child->ksp = &(child->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
 
@@ -183,37 +150,10 @@ int fork()
     // Copy parents segment image to child's segment
     copy_image(running->uss, child_segment);
 
-    //        Assume: P1 fork() P2 by        int r = syscall(7,0,0);
-    // 		      
-    //                              Parent (running)
-    // ========================== P1's image in 0x2000 ============================
-    // 
-    // 0x2000                   |       int80h             |  INT 80  |syscall(7,0,0)
-    // ----------------------------------------------------|--------------------------
-    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|0|xxxx| 
-    // --------------------------|-----------------------------------------------|----
-    //                          usp                                              usp
-    // P1's PROC.uss=0x2000      |             DS,ES,CS = 0x2000
-    //           usp= ------------         
-    // 
-    //                              Child of running
-    // ===========================P2's image in 0x3000 ============================
-    // 
-    // 0x3000                   |       int80h             |  INT 80  |syscall(7,0,0)
-    // ----------------------------------------------------|--------------------------
-    // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0||xxxxx| 
-    // --------------------------|----------------------------------------------------
-    //                           0  1  2  3  4  5  6  7  8  9  10  11   12
-    //                          usp    
-    // P2's PROC.uss=0x3000      |      COPIED DS,ES,CS = 0x2000 ALSO
-    //           usp=-------------                        but needs to be 0x3000
-    // 
-    // PC should be the same (offset in segment)
-
-
-    // Need to use putword to set DS, ES, CS to 0x3000 
+    // Copied DS, ES, CS = parent_segment
+    // Need to use putword to set DS, ES, CS to child_segment 
     // so things don't get messed up when change to Umode
-    // Conform to one-segment model
+    // Using the one-segment model, so they are all the same segment
     put_word(child_segment, child_segment, child->usp + UCS_FROM_USP); // Set Umode code  segment 
     put_word(child_segment, child_segment, child->usp + UES_FROM_USP); // Set Umode extra segment 
     put_word(child_segment, child_segment, child->usp + UDS_FROM_USP); // Set Umode data  segment
@@ -221,15 +161,11 @@ int fork()
     // Now parent and child are identical except for segment registers (UCS,UES,UDS).
     // Child's stack pointer is the same as parent's, but the usp is just an
     // offset relative to the segment so it doesn't need to be changed.
-    // Child thinks its done the same things that parent has done in Umode.
-
-    if(child->usp != running->usp)
-        printf("child->usp != running->usp\n");
-    else
-        printf("child->usp == running->usp\n");
+    // Child thinks its done the same things that parent has done in Umode!
 
     // Change child's return value to 0
-    put_word(0, child_segment, child->usp + UAX_FROM_USP); // try with running->usp (should be same)
+    put_word(0, child_segment, child->usp + UAX_FROM_USP); 
+
     return child->pid; // Parent returns child's PID
 }
 
@@ -285,7 +221,7 @@ int exec(char* filename)
     //      ---------------------------------------------------------------------
     //             -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
     //              0   1   2   3   4    5  6   7   8   9   10  11
-    
+
     for(i = 1; i <= NUM_UREG; i++)       
         put_word(0, segment, -i * WORD_SIZE);
 
@@ -327,3 +263,45 @@ int exec(char* filename)
 
     return SUCCESS;
 }
+
+int kexit(u16 exitValue)
+{
+    int i;
+    int count = 0;
+    PROC *p;
+
+    // Look for children
+    for (i = 0; i < NPROC; i++)
+    {
+        p = &proc[i];
+
+        // Count active procs while your at it
+        if(p->status != ZOMBIE && p->status != FREE)
+            count++;
+
+        // Give any orphans to P1
+        if(p->ppid == running->pid)
+            p->ppid = proc[1].pid;
+    }
+
+    // If the dying process is P1
+    // Don't let it die unless it is just P0 and P1
+    if(running->pid == proc[1].pid && count > 2)
+    {
+        printf("\nP1 still has children and will never abandon them!\n");
+        return FAILURE;
+    }
+
+    running->exitValue = exitValue;
+    running->status = ZOMBIE;
+    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
+
+    // If parent is sleeping, wake parent 
+    if(running->parent->status == SLEEPING)
+        kwakeup((int)running->parent);
+
+    // Give up CPU 
+    tswitch();
+    printf("\nI AM BACK FROM THE DEAD\n");
+    return SUCCESS;
+} 

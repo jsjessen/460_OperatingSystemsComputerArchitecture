@@ -1,0 +1,250 @@
+                      460 LAB Assignment #5
+                        DUE: March 2, 2015
+
+r = exec("filename a b c")
+argc = 4
+argv[0] = "filename" 
+argv[1] = "a"
+argv[2] = "b"
+argv[3] = "c"
+
+
+1. OBJECTIVES:
+   fork and exec in MTX
+
+2. REQUIREMENTS:
+
+   Implement the following system calls for the MTX system:
+
+===========================================================================
+(8).  pid = fork()  : fork a child process with an identical Umode image;
+                      parent returns child's pid, child returns 0.
+
+(9).  r = exec(file): change image to the specified (executable) file
+
+As usual, return -1 if the syscall fails.      
+===========================================================================
+
+                    3. HELP INFOMATION
+
+1. HOWTO fork():
+
+fork - running process creates a child process
+parent returns child pid
+child  returns 0
+
+(1). Do the same as kfork() to create a child proc in such a way that when the
+     child starts to runs (in Kmode), it RESUMES TO goUmode().
+
+     // Can change goto body to goto goUmode
+     // or goto body and immediatly call function goUmode()
+     
+(2). Determine the child's segment as  u16 child_segment. 
+
+     Set child's   PROC.uss = child_segment, and
+                   PROC.usp = running->usp   (See below for WHY?)
+
+     But DO NOT load any Umode image (file) to child's segment because it 
+     will have the SAME Umode iamge of its parent (the running proc). 
+                       
+(3). Use get_word()/put_word() to implement a 
+               copy_image(child_segment) // copy running segment to a child's segment
+                                         // copy (getword/putword) 32kb words (total of 64kb)
+     function, which copies the Umode image of running to child_segment.
+
+     copy_image() implies that the Umode images of parent and child are
+     IDENTICAL. So, their saved usp must also be the same value (each is an 
+     offset relative to its own segment). 
+
+     // usp is identically becuase it is just offset in segment
+     // result, child thinks its done the same things that parent has done in Umode
+
+(4). Copy Image:
+
+       Assume: P1 fork() P2 by        int r = syscall(7,0,0);
+		      
+                             Parent (running)
+========================== P1's image in 0x2000 ============================
+
+0x2000                   |       int80h             |  INT 80  |syscall(7,0,0)
+----------------------------------------------------|--------------------------
+|Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|0|xxxx| 
+--------------------------|-----------------------------------------------|----
+                         usp                                              usp
+P1's PROC.uss=0x2000      |             DS,ES,CS = 0x2000
+          usp= ------------         
+
+                             Child of running
+===========================P2's image in 0x3000 ============================
+
+0x3000                   |       int80h             |  INT 80  |syscall(7,0,0)
+----------------------------------------------------|--------------------------
+|Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0||xxxxx| 
+--------------------------|----------------------------------------------------
+                         usp    
+P2's PROC.uss=0x3000      |      COPIED DS,ES,CS = 0x2000 ALSO
+          usp=-------------
+
+// PC should be the same (offset in segment)
+
+// Need to use putword to set DS, ES, CS to 0x3000 so things don't get messed up
+// when change to Umode
+
+// also, change ax to 0 (return value)
+
+/******************************************************************************
+
+ If we let P2 goUmode() AS IS, it will resume to the segment 0x2000 also since 
+ the copied DS,ES,CS are all 0x2000: like sending TWO fellows to the same BED !
+
+   OK in the state of Washington but ILLEGAL in other parts of the world !
+
+******************************************************************************/ 
+
+  So the important part is how to fix the child's ustack contents to let it
+
+            . return to Umode in its OWN BED, and
+            . as if it had executed
+                    pid = fork();
+              but with a return pid = 0 
+              (Recall that the parent returns with the chid's pid) 
+
+     That's the fun part!!!! Think about how to do these first.
+=============================================================================
+
+2. HOWTO exec("filename");    
+
+must get "filename" char by char from user space (getbyte), move to kernel space 
+
+load("/bin/u2", segment); 
+start over from new image
+
+-------------------------------------
+
+how to pass parameters:
+pointer to stack
+if given "a.out one two three"
+copy whole string to high end of stack
+main0(char* s) // in crt0.o ?
+
+ | s | "a.out one two three" |
+   ^
+   |
+   sp
+
+once get string, tokenize using ' ' (space)
+create an array of pointers pointing to the strings
+main(int argc, char* argv[])
+
+so main0(), tokenize, then call main() with argc/argv
+
+-------------------------------------
+
+
+a process can use exec to change image
+
+load file to beginning of segment
+then move execution to beginning of stack
+now executing the file
+
+
+(1). In general:
+     Locate the file "filename", verify it's eXecutable, read file header
+     to determine the TOTAL memory needed, allocate a memory area for the 
+     NEW Umode image, then load the EXECUTABLE part of the file into memory.
+
+     The load(filename, segment) function is given. Use it as is.
+
+(2). After loading the new Umode image, fix up the ustack contents to make the
+     process execute from virtual address 0 when it returns to Umode. Refer to 
+     the diagram again:
+
+     0 out di through ax
+     PC also set to 0
+     flag = Umode flag
+
+     (LOW)  uSP                                | by INT 80  |   HIGH
+     ---------------------------------------------------------------------
+           |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag| XXXXXX
+     ---------------------------------------------------------------------
+            -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
+
+    16-bit mode bp
+    32-bit mode ebp
+    (ARM arch stack frame ptr is R11)
+    bp is stack frame pointer, each pointing to another stack frame, linked list ending in 0
+
+        (a). re-establish ustack to the very high end of the segment.
+        (b). "pretend" it had done  INT 80  from (virtual address) 0: 
+             (c). fill in uCS, uDS, uES in ustack
+             (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
+                                        all other registers = 0;
+             (e). fix proc.uSP to point at the current ustack TOP (-24)
+
+     Finally, return from exec() ==> goUmode().
+
+
+Sample Solution:  samples/LAB5/mtximage (also u1, u2 files)
+
+u1.s u1.c -> u1.o (/bin/u1)
+when run u1 all lowercase
+copy u1 -> u2
+change all tolower to toupper
+when run u2 all uppercase
+then can tell which is running, and if things are working correctly
+
+/*************************     BONUS: **************************************
+
+   Implement YOUR exec("filename arg1 arg2 ... argn") in such a way that, 
+upon entry to the new image, the main() function can be written as
+
+    // main0 tokenize input string into argc/argv and then call main()
+
+    main(int argc, char *argv[ ])
+    {
+      // argc = n+1;
+      // argv[0]= "filename"; argv[1]=arg1, ... argv[n]=argn;
+    }
+
+JUST LIKE IN UNIX/LINUX
+***************************************************************************/ 
+
+QUESTIONS:
+1. What's the value of 64KB? 0x1000 ?  OR  0x10000?
+   In 16-bit mode, what's 64KB?
+
+2. What's the difference between  int i  and u16 i ?
+   int i;  
+   for (i=0; i<64*1024; i++) What's wrong?
+  
+3. HOW do you copy the parent process (64KB) image to child's segment?
+
+   Show your copyImage(u16 childSegment) code.
+
+4. Command-line Parameters:
+
+(1). Modify your exec("filename") to exec("filename one two three"), which
+     takes the commnad-line as parameter.
+
+(2). Put "filename one two three" to the HIGH end of ustack and let s point at
+     the string, as in
+
+            // copy string to high end of stack
+             -------------------------------------------------------
+                                       | s->|filename one two three|
+             -------------------------------------------------------
+(3). Add a return to Umode stack frame, as in
+             -------------------------------------------------------
+                    return stack frame | s->|filename one two three|
+             -------------------------------------------------------
+                                         ^
+                                         |
+          // by the time back in umode: sp
+
+(4). Re-write u.s as
+                  .global _main0
+                  call _main0
+
+(5). main0(char *s) in C:
+       toakenize s into argc, argv[ ];
+       call main(argc, argv)
