@@ -1,7 +1,5 @@
-<html>
-<Body bgcolor="#dbffff" text="#000000">
-<pre>
-              <h1><center>File System in MTX</center></h1>                
+              File System in MTX
+
 1. File I/O Operations
  
     Figure 1 shows a diagram of file I/O operations. In the diagram, the 
@@ -42,6 +40,18 @@ FILE *fp=fopen( ) ==>  FILE sruct         |    open|read|write|lseek|close  |
        |uStack|                         |getchar()| putchar()|scanf()|printf()| 
        --------                         ---------------------------------------
        User Image
+
+JJ: fwrite(write to buffer until full, then use syscall to write to actual file)
+    Don't go to disk right away, first check the Buffer Cache!
+    Could be reading/writing with a pipe instead of an Inode
+
+    Inode could be a special file, aka a device
+    Block 0 of special Inode
+    [major | minor]
+     type#   on the device, which unit
+       /       \
+     3=HD      2=P2
+
 
 ------------------------------ User Space -----------------------------------
 
@@ -298,13 +308,18 @@ Assume that int nocall(){ } is just an empty function, and
          serial_read(), serial_write(),   // serail port read/write 
          printer_write();                 // printer write()
 
+    JJ: console_read = getc()
+        console_write = putc()
+        serial_read = sgetc()
+        serial_write = sputc()
+
 are device driver functions. The device switch table is set up to contain the
 driver function pointers, as shown below.
 
          struct dev_sw dev_sw[ ] =
          { //   read           write  
            // --------        --------
-              nocall,          nocall,           // 0 /dev/null
+              nocall,          nocall,           // 0 /dev/null (blackhole)
               nocall,          nocall,           // 1 kernel memory
               fd_read,         fd_write,         // 2 FD
               hd_read,         hd_write,         // 3 HD
@@ -313,10 +328,17 @@ driver function pointers, as shown below.
               nocall,          printer_write     // 6 printer
          };
 
+    JJ: Major type# is index indicating which functions to use for read/write
+        Floppy Disk = FD
+        FD(2,0) = 1st floppy disk
+        FD(2,1) = 2nd floppy disk
+        Why 2=FD and 3=HD? Just how it was setup in original Linux, arbitrary.
+        systematic routine for each device
+
 Then, reading/writing a special file becomes
 
       (1). get special file's (major, minor) number from INODE.i_block[0];
-      (2). return (*dev_sw[major].dev_read)(minor, parameters);  // for READ
+      (2). return (*dev_sw[major].dev_read)(minor, parameters);  // for READ (invoke function from table, passing parameters)
       OR   return (*dev_sw[major].dev_write)(minor, parameters); // for WRITE
       
 (2). invokes the corresponding device driver function, passing as parameters
@@ -362,3 +384,24 @@ table, the mode field contains the O_DIR bit.
 User mode programs must use the readdir(fd, struct udir *dir) syscall instead
 of the readdir(DP) call.
 
+JJ: int (*f[ ])() = { getpid, getppid, ... };  // Table of function pointers
+    Have been working in 16-bit real mode (the first partition on KC's OS)
+    -m 520m how much memory
+    -smp $1 how many cpu's
+    ps = 
+    pts/1  terminal 1
+    pts/2  terminal 2
+
+    modify q command to mach number
+
+    have shell goto sleep (sleep 10000000) so io will be grabed by our serial driver, not shell
+
+    -serial /dev/pts/2 \ -parallel /dev/pts/3
+
+    P0 -> P1 -> init.c (instead of u1.c) -> ... -> login
+
+
+    /etc/++x (each line fork child and run, a line for each terminal/serial port)
+
+    KC will give kernel syscalls
+    you write user mode functions
