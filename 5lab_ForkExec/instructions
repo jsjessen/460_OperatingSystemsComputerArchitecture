@@ -120,6 +120,16 @@ load("/bin/u2", segment);
 start over from new image
 
 -------------------------------------
+create crt0.c with corresponding obj file
+in it make function:
+    int main0(char* s)
+
+refer to 360 code to strtok and create argv[]
+
+if the input string is copied to the high end of the stack
+it will shift everything
+so need to adjust method of accessing FLAG, UCS, UDS, UES
+
 
 how to pass parameters:
 pointer to stack
@@ -240,6 +250,8 @@ QUESTIONS:
                                          ^
                                          |
           // by the time back in umode: sp
+
+    How exactly?
 
 (4). Re-write u.s as
                   .global _main0

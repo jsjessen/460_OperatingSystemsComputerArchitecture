@@ -12,7 +12,7 @@ Note to self: split type.h into global.h and kernel.h
 
 1. File Descriptors:
 
-     #include &lt;fcntl.h&gt;
+     #include <fcntl.h>
 
      int fd = open("file", flag); /* O_RDONLY, O_WRONLY, O_RDWR, ... */
 

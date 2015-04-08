@@ -155,5 +155,3 @@ _goUmode:
         iret    ! ret pop stack top and puts in PC register, iret is interupt return (pops 3 things as 1)
                 ! uPC uCS flag all popped into CPU as one unit (CPU always obeys PC and CS)
                 ! 0 location is where code was moved to
-
-	
