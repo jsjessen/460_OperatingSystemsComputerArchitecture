@@ -93,7 +93,7 @@ int body()
             case 'h' : help_menu();    break;
 
             case 's' : do_tswitch();   break;
-            case 'f' : do_kfork("/bin/u1");     break;
+            case 'f' : do_kfork("/bin/user_one");     break;
             case 'p' : do_ps();        break; 
             case 'z' : do_sleep();     break; 
             case 'a' : do_wakeup();    break; 
@@ -115,7 +115,7 @@ int main()
     printf("-----------------\n");
     initialize(); // initialize and create P0 as running
 
-    kfork("/bin/u1");  // P0 kfork() P1
+    kfork("/bin/user_one");  // P0 kfork() P1
 
     printQueue("readyQueue", readyQueue);
     printf("P%d running\n", running->pid);

@@ -20,7 +20,7 @@ int main()
 
         printf("\n----------------------------------------------\n");
         printf("U2 COUNT = %d\n", count++);
-        printf("I AM PROC %d IN U MODE: RUNNING SEGMENT=%x\n",getpid(), getcs()); 
+        printf("I AM P%d IN U MODE: RUNNING SEGMENT=%x\n",getpid(), getcs()); 
         show_menu();
         printf("COMMAND ? ");
         gets(name); 

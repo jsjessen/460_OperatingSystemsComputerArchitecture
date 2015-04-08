@@ -18,7 +18,7 @@ int main()
 
         printf("\n----------------------------------------------\n");
         printf("U1 Count = %d\n", count++);
-        printf("I am proc %d in U mode: running segment=%x\n",getpid(), getcs());
+        printf("I am P%d in U mode: running segment=%x\n",getpid(), getcs());
         show_menu();
         printf("Command ? ");
         gets(name); 

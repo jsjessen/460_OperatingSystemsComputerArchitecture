@@ -99,8 +99,10 @@ all: $(KC_IMAGE) $(BOOTER) $(USERS) $(KERNEL)
 	$(OS) and $(USER) to $(JJ_IMAGE)...$(NO_COLOR)"
 	sudo mount -o loop $(JJ_IMAGE) /mnt
 	sudo cp $(OS) /mnt/boot/$(OS)
-	sudo cp $(USER1) /mnt/bin/u1 
-	sudo cp $(USER2) /mnt/bin/u2 
+	sudo cp $(USER1) /mnt/bin/user_one
+	sudo cp $(USER2) /mnt/bin/user_two
+	sudo cp $(USER1) /mnt/bin/u1
+	sudo cp $(USER2) /mnt/bin/u2
 	ls -la /mnt/bin
 	sudo umount /mnt
 

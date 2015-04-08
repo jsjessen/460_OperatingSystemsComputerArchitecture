@@ -22,8 +22,8 @@
 #define NUM_UREG 12 
 
 #define KB        1024
-#define REG_SIZE  2
 #define WORD_SIZE 2
+#define REG_SIZE  2
 
 #define NAMELEN 32
 
@@ -32,20 +32,21 @@
 // ----------------------------------------------------------------
 //    -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 
 //                                                   End
-#define UFLAG_FROM_END (-1  * WORD_SIZE) // Flag
-#define UCS_FROM_END   (-2  * WORD_SIZE) // Code Segment
-#define UES_FROM_END   (-11 * WORD_SIZE) // Extra Segment
-#define UDS_FROM_END   (-12 * WORD_SIZE) // Data Segment
+#define UFLAG_FROM_END (-1  * REG_SIZE) // Flag
+#define UCS_FROM_END   (-2  * REG_SIZE) // Code Segment
+#define UES_FROM_END   (-11 * REG_SIZE) // Extra Segment
+#define UDS_FROM_END   (-12 * REG_SIZE) // Data Segment
 
 // ------------------------------------------------------------------------------
 // |Code Data               |DS|ES|di|si|bp|dx|cx|bx|ax|PC|CS|flag|rPC|7|0|xxxxx| 
 // --------------------------|---------------------------------------------------
 //                           0  1  2  3  4  5  6  7  8  9  10  11   12
 //                          usp    
-#define  UDS_FROM_USP ( 0 * REG_SIZE) // Data Segment
-#define  UES_FROM_USP ( 1 * REG_SIZE) // Extra Segment
-#define  UAX_FROM_USP ( 8 * REG_SIZE) // Return Register
-#define  UCS_FROM_USP (10 * REG_SIZE) // Code Segment
+#define UDS_FROM_USP   ( 0 * REG_SIZE)  // Data Segment
+#define UES_FROM_USP   ( 1 * REG_SIZE)  // Extra Segment
+#define UAX_FROM_USP   ( 8 * REG_SIZE)  // Return Register
+#define UCS_FROM_USP   (10 * REG_SIZE)  // Code Segment
+#define UFLAG_FROM_USP (11 * REG_SIZE) // Flag
 
 typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
 

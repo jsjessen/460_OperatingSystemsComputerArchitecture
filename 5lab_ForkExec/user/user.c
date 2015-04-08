@@ -141,7 +141,6 @@ int exec()
 {
     char filename[64];
     printf("input new name : ");
-    //gets(filename);
-    strcpy(filename, "u2");
+    gets(filename);
     return syscall(8, filename, 0);
 }

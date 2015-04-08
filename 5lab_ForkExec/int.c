@@ -103,7 +103,7 @@ int kexec(char* filename)
 // return child pid or -1 
 int kkfork()
 {
-    return do_kfork("/bin/u1");
+    return do_kfork("/bin/user_one");
 }
 // enter Kernel to switch process (call tswitch())
 int ktswitch()

@@ -170,6 +170,7 @@ int fork()
 }
 
 // Change the running process's image 
+// BUG: Works with user_two but u2 is mistaken for u1
 int exec(char* pathname)
 {
     int i;
@@ -179,128 +180,48 @@ int exec(char* pathname)
             running->pid, pathname, segment);
 
     // Load file to beginning of segment
-    //load(filename, segment);
     load(pathname, segment);
-    // start over from new image
 
-    // -------------------------------------
-    // how to pass parameters:
-    // pointer to stack
-    // if given "a.out one two three"
-    // copy whole string to high end of stack
-    // main0(char* s) // in crt0.o ?
-    // 
-    // flag | s | "a.out one two three" |
-    //        ^
-    //        |
-    //        sp
-    // 
-    // once get string, tokenize using ' ' (space)
-    // create an array of pointers pointing to the strings
-    // main(int argc, char* argv[])
-    // 
-    // so main0(), tokenize, then call main() with argc/argv
-    // -------------------------------------
-    //
-    //
-        // write 0's to ALL of them
-        for(i = 1; i <= NUM_UREG; i++)       
-            put_word(0, segment, -i * WORD_SIZE);
+  //  After loading the new Umode image, fix up the ustack contents to make the
+  //   process execute from virtual address 0 when it returns to Umode. Refer to 
+  //   the diagram again:
 
-        put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
+  //   0 out di through ax
+  //   PC also set to 0
+  //   flag = Umode flag
 
-        // Conform to one-segment model
-        put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
-        put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
-        put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
+  //   (LOW)  uSP                                | by INT 80  |   HIGH
+  //   ---------------------------------------------------------------------
+  //         |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag| XXXXXX
+  //   ---------------------------------------------------------------------
+  //          -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
+  //
+  //   (a). re-establish ustack to the very high end of the segment.
+  //   (b). "pretend" it had done  INT 80  from (virtual address) 0: 
+  //        (c). fill in uCS, uDS, uES in ustack
+  //        (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
+  //                                   all other registers = 0;
+  //        (e). fix proc.uSP to point at the current ustack TOP (-24)
 
-        // execution from uCS segment, uPC offset
-        // (segment, 0) = u1's beginning address
-
-        // initial USP relative to USS
-        running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
-        running->uss = segment;
-    //
-    //
-    // then move execution to beginning of stack
-    // now executing the file
-
-    // (2). After loading the new Umode image, fix up the ustack contents to make the
-    //      process execute from virtual address 0 when it returns to Umode. Refer to 
-    //      the diagram again:
-    // 
-    //      0 out di through ax
-    //      PC also set to 0
-    //      flag = Umode flag
-    // 
-    //      (LOW)  uSP                                | by INT 80  |   HIGH
-    //      ---------------------------------------------------------------------
-    //            |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag| XXXXXX
-    //      ---------------------------------------------------------------------
-    //             -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
-    //              0   1   2   3   4    5  6   7   8   9   10  11
-
-    // Zero out PC through DI 
-    //for(i = 3; i <= 10; i++)       
-    //    put_word(0, segment, -i * WORD_SIZE);
-
-    //put_word(0x0200, segment, -1 * WORD_SIZE); // Set flag I bit-1 to allow interrupts 
-
-    // bp is stack frame pointer, each pointing to another stack frame, linked list ending in 0
-
-    //         (a). re-establish ustack to the very high end of the segment.
-
-    //         (b). "pretend" it had done  INT 80  from (virtual address) 0: 
-
-    //              (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
-    //                                         all other registers = 0;
-    //
     // write 0's to ALL of them
-    //for(i = 1; i <= NUM_UREG; i++)       
-    //    put_word(0, segment, -i * WORD_SIZE);
+    for(i = 1; i <= NUM_UREG; i++)       
+        put_word(0, segment, -i * WORD_SIZE);
 
-    //put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
+    put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
 
-    ////              (c). fill in uCS, uDS, uES in ustack
-    //// Conform to one-segment model
-    //put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
-    //put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
-    //put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
+    // Conform to one-segment model
+    put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
+    put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
+    put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
 
-    //// execution from uCS segment, uPC offset
-    //// (segment, 0) = u1's beginning address
-
-    //// initial USP relative to USS
-    //running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
-
-
+    // initial USP relative to USS
+    running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
 
     // Now:
     // Flag is set to allow interrupts
     // uCS, uES, uDS are set to the running proc's user mode segment
     // uPC is set to 0, so execution will start from (virtual address) 0 when goUmode
-    // The rest of the registers zeroed
-
-    //              (e). fix proc.uSP to point at the current ustack TOP (-24)
-    //running->usp = 
-    //      Finally, return from exec() ==> goUmode().
-
-    //child->kstack[SSIZE - 1] = (int)goUmode;       
-    //child->ksp = &(child->kstack[SSIZE - NUM_KREG]); // Save stack top address in proc ksp
-
-    // 
-    // *************************     BONUS: **************************************
-    // 
-    //    Implement YOUR exec("filename arg1 arg2 ... argn") in such a way that, 
-    // upon entry to the new image, the main() function can be written as
-    // 
-    //     // main0 tokenize input string into argc/argv and then call main()
-    // 
-    //     main(int argc, char *argv[ ])
-    //     {
-    //       // argc = n+1;
-    //       // argv[0]= "filename"; argv[1]=arg1, ... argv[n]=argn;
-    //     }
+    // The rest of the registers are cleared 
 
     return SUCCESS;
 }
