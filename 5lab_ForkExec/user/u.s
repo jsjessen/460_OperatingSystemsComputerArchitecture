@@ -1,7 +1,7 @@
-        .globl _main,_exit      ! IMPORT
+        .globl _main0,_exit     ! IMPORT
         .globl _getcs,_syscall  ! EXPORT
 
-        call _main
+        call _main0
 	
 ! if ever return, exit(0)
 	    push  #0            ! push exitValue 0

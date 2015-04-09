@@ -139,8 +139,8 @@ int fork()
 
 int exec()
 {
-    char filename[64];
-    printf("input new name : ");
-    gets(filename);
-    return syscall(8, filename, 0);
+    char cmdline[64];
+    printf("inputs : ");
+    gets(cmdline);
+    return syscall(8, cmdline, 0);
 }

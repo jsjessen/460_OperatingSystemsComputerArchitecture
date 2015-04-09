@@ -24,6 +24,7 @@
 #define KB        1024
 #define WORD_SIZE 2
 #define REG_SIZE  2
+#define PTR_SIZE  2
 
 #define NAMELEN 32
 

@@ -88,25 +88,7 @@ void do_wait() // w
         printf("\n\nP%d finds zombie child P%d with exit status %x and resumes", running->pid, pid, status);
 }
 
-int do_exec(char* filename)
+int do_exec(char* cmdline)
 {
-    char pathname[NAMELEN + 5];
-    char buf[NAMELEN];
-    char *cp = buf;
-    int count = 0; 
-
-    // Get filename char by char from user space to kernel space 
-    while(count < NAMELEN)
-    {
-        *cp = get_byte(running->uss, (u16)filename);
-        if(*cp == '\0') break;
-        cp++; filename++; count++;
-    }
-    buf[NAMELEN - 1] = '\0';
-    // buf now contains a local copy of the filename
-    
-    strcpy(pathname, "/bin/");
-    strcat(pathname, buf);
-
-    return exec(pathname);
+    return exec(cmdline);
 }

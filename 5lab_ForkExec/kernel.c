@@ -67,7 +67,7 @@ PROC* kfork(char* filename)
 
         // write 0's to ALL of them
         for(i = 1; i <= NUM_UREG; i++)       
-            put_word(0, segment, -i * WORD_SIZE);
+            put_word(0, segment, -i * REG_SIZE);
 
         put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
 
@@ -80,7 +80,7 @@ PROC* kfork(char* filename)
         // (segment, 0) = u1's beginning address
 
         // initial USP relative to USS
-        p->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
+        p->usp = -NUM_UREG * REG_SIZE;  // Top of Ustack (per INT 80)
         p->uss = segment;
 
         // When the new PROC execute goUmode in assembly, it does:
@@ -170,52 +170,78 @@ int fork()
 }
 
 // Change the running process's image 
-// BUG: Works with user_two but u2 is mistaken for u1
-int exec(char* pathname)
+// BUG: Works with user_two or U2, but u2 is mistaken for u1
+int exec(char* cmdline)
 {
-    int i;
-    u16 segment = running->uss;
+    int i, length;
+    char buf[NAMELEN];
+    char *cp = buf;
+    u16 usp, segment = running->uss;
 
-    printf("\nP%d exec %s in segment %x\n", 
-            running->pid, pathname, segment);
+    // Get cmdline char by char from user space to kernel space 
+    length = 0;
+    while(length < NAMELEN)
+    {
+        *cp = get_byte(segment, (u16)cmdline);
+        if(*cp == '\0') break;
+        cp++; cmdline++; length++;
+    }
+    buf[NAMELEN - 1] = '\0'; // ensure it is null terminated
+    // buf now contains a local copy of the cmdline
+
+    printf("\nP%d exec '%s' in segment %x\n", 
+            running->pid, buf, segment);
+
+    // After loading the new Umode image, fix up the ustack contents to make the
+    // process execute from virtual address 0 when it returns to Umode. 
+    //          
+    //                       For "abc" with length = 3
+    //
+    // (LOW)              (words)                | by INT 80  |   HIGH
+    //  usp  1   2   3   4   5   6   7   8   9  10   11   12  13  14  15  16
+    // -----------------------------------------------------------------------
+    // |uDS|uES|udi|usi|ubp|udx|ucx|ubx|uax|uPC|uCS|uflag|-4|'a'|'b'|'c'|'\0'|
+    // -----------------------------------------------------------------------
+    //                                                    -6  -4  -3  -2  -1
+    //                                                           (bytes)
+    //
+    // (a). re-establish ustack to the very high end of the segment.
+    // (b). "pretend" it had done  INT 80  from (virtual address) 0: 
+    //      (c). fill in uCS, uDS, uES in ustack
+    //      (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
+    //                                 all other registers = 0;
+    //      (e). fix proc.uSP to point at the current ustack TOP (-24)
+
+    // Position of first char: -(length + 1) because (letters + null)
+    // Registers are shifted: (length + 1 + 2) because (letters + null + ptr)
+    
+    // Put cmdline to the High end of the Ustack
+    for(i = length; i >= 0; i--)
+    {
+        put_byte(buf[i], segment, i - (length + 1));
+        if(buf[i] == ' ') buf[i] = '\0'; // so only first word gets loaded
+    }
+    // Point to the cmdline string
+    put_word(-(length + 1), segment, -(length + 1 + PTR_SIZE));
 
     // Load file to beginning of segment
-    load(pathname, segment);
-
-  //  After loading the new Umode image, fix up the ustack contents to make the
-  //   process execute from virtual address 0 when it returns to Umode. Refer to 
-  //   the diagram again:
-
-  //   0 out di through ax
-  //   PC also set to 0
-  //   flag = Umode flag
-
-  //   (LOW)  uSP                                | by INT 80  |   HIGH
-  //   ---------------------------------------------------------------------
-  //         |uDS|uES| di| si| bp| dx| cx| bx| ax|uPC|uCS|flag| XXXXXX
-  //   ---------------------------------------------------------------------
-  //          -12 -11 -10  -9  -8  -7  -6  -5  -4  -3  -2  -1 | 0 
-  //
-  //   (a). re-establish ustack to the very high end of the segment.
-  //   (b). "pretend" it had done  INT 80  from (virtual address) 0: 
-  //        (c). fill in uCS, uDS, uES in ustack
-  //        (d). execute from VA=0 ==> uPC=0, uFLAG=0x0200, 
-  //                                   all other registers = 0;
-  //        (e). fix proc.uSP to point at the current ustack TOP (-24)
-
-    // write 0's to ALL of them
-    for(i = 1; i <= NUM_UREG; i++)       
-        put_word(0, segment, -i * WORD_SIZE);
-
-    put_word(0x0200, segment, UFLAG_FROM_END); // Set flag I bit-1 to allow interrupts 
-
-    // Conform to one-segment model
-    put_word(segment, segment, UCS_FROM_END); // Set Umode code  segment 
-    put_word(segment, segment, UES_FROM_END); // Set Umode extra segment 
-    put_word(segment, segment, UDS_FROM_END); // Set Umode data  segment
+    //load(buf, segment);
+    load("/bin/u2", segment);
 
     // initial USP relative to USS
-    running->usp = -NUM_UREG * WORD_SIZE;  // Top of Ustack (per INT 80)
+    running->usp = -((NUM_UREG * REG_SIZE) + (length + 1 + PTR_SIZE)); // Top of Ustack (per INT 80)
+    usp = running->usp;
+
+    // Start by clearing all registers
+    for(i = 0; i < NUM_UREG; i++)       
+        put_word(0, segment, usp + (i * REG_SIZE));
+
+    put_word(0x0200, segment, usp + UFLAG_FROM_USP); // Set flag I bit-1 to allow interrupts 
+
+    // Conform to one-segment model
+    put_word(segment, segment, usp + UCS_FROM_USP); // Set Umode code  segment 
+    put_word(segment, segment, usp + UES_FROM_USP); // Set Umode extra segment 
+    put_word(segment, segment, usp + UDS_FROM_USP); // Set Umode data  segment
 
     // Now:
     // Flag is set to allow interrupts

@@ -1,13 +1,14 @@
 #include "user.h"
 
 int color;
-int main()
+int main()//int argc, char* argv[])
 { 
     char name[64]; int pid, cmd;
     int count = 0;
 
     color = 0x0C;
     printf("\n==============================================\n");
+    //printf("argc=%d\n", argc);
     printf("Still in U1 :(");
     printf("\n==============================================\n");
 

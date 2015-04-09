@@ -66,9 +66,9 @@ USER2 := $(USER_DIR)/u2
 USERS := $(USER1) $(USER2)
 USER_OBJ_DIR := $(USER_DIR)/$(OBJ_DIR)
 USER1_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o user.o u1.o)
+				u.o crt0.o user.o u1.o)
 USER2_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o user.o u2.o)
+				u.o crt0.o user.o u2.o)
 
 # Kernel
 # Assumes that Kernel is in the same directory as this Makefile
@@ -99,10 +99,10 @@ all: $(KC_IMAGE) $(BOOTER) $(USERS) $(KERNEL)
 	$(OS) and $(USER) to $(JJ_IMAGE)...$(NO_COLOR)"
 	sudo mount -o loop $(JJ_IMAGE) /mnt
 	sudo cp $(OS) /mnt/boot/$(OS)
+	sudo cp $(USER1) /mnt/bin/U1
+	sudo cp $(USER2) /mnt/bin/U2
 	sudo cp $(USER1) /mnt/bin/user_one
 	sudo cp $(USER2) /mnt/bin/user_two
-	sudo cp $(USER1) /mnt/bin/u1
-	sudo cp $(USER2) /mnt/bin/u2
 	ls -la /mnt/bin
 	sudo umount /mnt
 
@@ -228,6 +228,9 @@ $(USER_DIR)/user.h: type.h $(LIB)
 
 $(USER_OBJ_DIR)/u.o: $(USER_DIR)/u.s
 	$(SC) $< -o $@
+
+$(USER_OBJ_DIR)/crt0.o: $(USER_DIR)/crt0.c
+	$(CC) $(CFLAGS) $< -o $@
 
 $(USER_OBJ_DIR)/user.o: $(USER_DIR)/user.c $(USER_DIR)/user.h
 	$(CC) $(CFLAGS) $< -o $@
