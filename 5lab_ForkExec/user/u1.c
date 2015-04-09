@@ -6,20 +6,19 @@ int main()//int argc, char* argv[])
     char name[64]; int pid, cmd;
     int count = 0;
 
-    color = 0x0C;
-    printf("\n==============================================\n");
-    //printf("argc=%d\n", argc);
-    printf("Still in U1 :(");
-    printf("\n==============================================\n");
+    pid = getpid();
+    color = 0x000A + (pid % 6); 
+    printf("\n\n====================================================\n");
+    printf("Entering U1");
 
     while(1)
     {
         pid = getpid();
         color = 0x000A + (pid % 6); 
 
-        printf("\n----------------------------------------------\n");
-        printf("U1 Count = %d\n", count++);
-        printf("I am P%d in U mode: running segment=%x\n",getpid(), getcs());
+        printf("\n----------------------------------------------------\n");
+        printf("I am P%d in User Mode on segment=%x with count=%d\n", 
+                getpid(), getcs(), count++);
         show_menu();
         printf("Command ? ");
         gets(name); 

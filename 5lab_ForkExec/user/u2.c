@@ -1,26 +1,24 @@
 #include "user.h"
 
 int color;
-int main()
+int main()//int argc, char* argv[])
 { 
     char name[64]; int pid, cmd;
     int count = 0;
 
-    color = 0x000A;
-    printf("\n==============================================\n");
-    printf("Congratulations! You have made it to U2 :)");
-    printf("\n==============================================\n");
+    pid = getpid();
+    color = 0x000A + (pid % 6); 
+    printf("\n\n====================================================\n");
+    printf("ENTERING U2");
 
     while(1)
     {
         pid = getpid();
-
         color = 0x000A + (pid % 6); 
-        //color = 0x0C;
 
-        printf("\n----------------------------------------------\n");
-        printf("U2 COUNT = %d\n", count++);
-        printf("I AM P%d IN U MODE: RUNNING SEGMENT=%x\n",getpid(), getcs()); 
+        printf("\n----------------------------------------------------\n");
+        printf("I AM P%d IN USER MODE ON SEGMENT=%x WITH COUNT=%d\n", 
+                getpid(), getcs(), count++);
         show_menu();
         printf("COMMAND ? ");
         gets(name); 

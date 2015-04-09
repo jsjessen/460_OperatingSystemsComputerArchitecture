@@ -66,9 +66,9 @@ USER2 := $(USER_DIR)/u2
 USERS := $(USER1) $(USER2)
 USER_OBJ_DIR := $(USER_DIR)/$(OBJ_DIR)
 USER1_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o crt0.o user.o u1.o)
+				u.o user.o u1.o crt0.o)
 USER2_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o crt0.o user.o u2.o)
+				u.o user.o u2.o crt0.o)
 
 # Kernel
 # Assumes that Kernel is in the same directory as this Makefile

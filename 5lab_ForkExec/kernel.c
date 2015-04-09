@@ -225,8 +225,8 @@ int exec(char* cmdline)
     put_word(-(length + 1), segment, -(length + 1 + PTR_SIZE));
 
     // Load file to beginning of segment
-    //load(buf, segment);
-    load("/bin/u2", segment);
+    load(buf, segment);
+    //load("/bin/u2", segment);
 
     // initial USP relative to USS
     running->usp = -((NUM_UREG * REG_SIZE) + (length + 1 + PTR_SIZE)); // Top of Ustack (per INT 80)
