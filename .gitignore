@@ -4,9 +4,14 @@
 *mtx
 booter
 samples
+vdisk
+
+# Allow These 
+#############
 !loader.o
 !diskio.o
 
+#######################################
 
 # C #
 #####
