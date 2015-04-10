@@ -46,6 +46,15 @@ int pfd()
 
 int read_pipe(int fd, char *buf, int n)
 {
+    OFT* op;
+    PIPE* pp;
+
+    op = running->fd[fd];
+    pp = op->pipe_ptr;
+
+    printf("Before Read:\n");
+    show_pipe(pp);
+
     // (B). READER Process: call  
     //       
     //              n = read(pd[0], buf, nbytes);
@@ -56,24 +65,39 @@ int read_pipe(int fd, char *buf, int n)
     //               read as much as it can; either nbytes or until no more data.
     //               return ACTUAL number of bytes read
     //            }.
+    if(pp->nwriter <= 0)
+    {
+
+        return 642;
+    }
+
     //            --------------------------------------------------------------
     //                       (pipe still have WRITERs)
     //       (2). if (pipe has data){
     //               read until nbytes or (3).
     //               "wakeup" WRITERs that are waiting for room
     //            }
+    if(pp->data > 0)
+    {
+
+        return 32;
+    }
+
     //       (3). if (NO data in pipe){
     //               "wakeup" WRITERs that are waiting for room
     //               "wait" for data; 
     //               then try to read again from (1).
     //            }
-    // 
+
     //      ---------------------------------------------- 
     //      JJ: dec ref count by one then follow, dec reader by one (remember iput)
     //      kclose()  ===> close a file descriptor ==> special handling of pipes.
     //      ===================================================================
     // Inside the read_pipe()/write_pipe() function, it would be very informative 
     // if you call showPipe() to display the pipe conditions and contents.
+
+    printf("After Read:\n");
+    show_pipe(pp);
 
     // your code for read_pipe()
     return 0;
