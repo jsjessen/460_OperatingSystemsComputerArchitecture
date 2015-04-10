@@ -71,7 +71,7 @@ void initialize()
     for(i = 0; i < NOFT; i++)
         oft[i].refCount = 0;
     for(i = 0; i < NPIPE; i++)
-        pipe[i].busy = 0;
+        pipe[i].busy = false;
 
     // P0 starts off running
     running = delist(&freeList);

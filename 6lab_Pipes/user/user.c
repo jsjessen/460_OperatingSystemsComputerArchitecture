@@ -11,40 +11,46 @@ char *cmd[]=
     "exit", 
     "fork", 
     "exec", 
+    "pipe",
+    "pfd",
+    "close",
+    "read",
+    "write",
     0
 };
 
 int show_menu()
 {
-   printf("********************** Menu ************************\n");
-   printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
-   printf("****************************************************\n");
-   return SUCCESS;
+    printf("********************** Menu ************************\n");
+    printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
+    printf("*         pipe   pfd    close  read  write         *\n");
+    printf("****************************************************\n");
+    return SUCCESS;
 }
 
 int find_cmd(char *name)
 {
-   int i=0;   
-   char *p=cmd[0];
+    int i = 0;   
+    char *p = cmd[0];
 
-   while(p)
-   {
-         if (strcmp(p, name) == 0)
+    while(p)
+    {
+        if (strcmp(p, name) == 0)
             return i;
-         i++; 
-         p = cmd[i];
-   } 
-   return FAILURE;
+        i++; 
+        p = cmd[i];
+    } 
+    return FAILURE;
 }
 
 int getpid()
 {
-   return syscall(SYSCALL_GET_PID,0,0);
+    return syscall(SYSCALL_GET_PID,0,0);
 }
 
 int ps()
 {
-   return syscall(SYSCALL_PS, 0, 0);
+    return syscall(SYSCALL_PS, 0, 0);
 }
 
 int chname()
@@ -84,34 +90,34 @@ int wait()
 
 int geti_()
 {
-  char s[16];
-  return atoi(gets(s));
+    char s[16];
+    return atoi(gets(s));
 }
 
 int exit()
 {
-   int exitValue;
-   printf("enter an exitValue: ");
-   exitValue = geti();
-   printf("exitvalue=%d\n", exitValue);
-   printf("enter kernel to die with exitValue=%d\n", exitValue);
-   return _exit(exitValue);
+    int exitValue;
+    printf("enter an exitValue: ");
+    exitValue = geti();
+    printf("exitvalue=%d\n", exitValue);
+    printf("enter kernel to die with exitValue=%d\n", exitValue);
+    return _exit(exitValue);
 }
 
 int _exit(int exitValue)
 {
-  return syscall(SYSCALL_EXIT,exitValue,0);
+    return syscall(SYSCALL_EXIT,exitValue,0);
 }
 
 
 int _getc()
 {
-  return syscall(SYSCALL_GETC,0,0) & 0x7F;
+    return syscall(SYSCALL_GETC,0,0) & 0x7F;
 }
 
 int _putc(char c)
 {
-  return syscall(SYSCALL_PUTC,c,0,0);
+    return syscall(SYSCALL_PUTC,c,0,0);
 }
 
 int invalid(char *name)
