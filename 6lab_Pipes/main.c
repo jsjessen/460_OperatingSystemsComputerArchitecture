@@ -9,11 +9,15 @@ int color;
 char *pname[] = { "Sun", "Mercury", "Venus", "Earth",  "Mars", 
                   "Jupiter", "Saturn", "Uranus", "Neptune" };
 
+OFT oft[NOFT];
+PIPE pipe[NPIPE];
+
 void set_vec(u16 vector, u16 handler)
 {
-     //      (word, segment, offset)
-     put_word(handler, 0x0000,  vector << 2);      // set PC = _int80h
-     put_word(0x1000,  0x0000, (vector << 2) + 2); // set CS = 0x1000
+    u16 location = vector << 2;
+
+    put_word(handler, 0,  location);    // set PC = _int80h
+    put_word(0x1000,  0, location + 2); // set CS = 0x1000
 }
 
 void help_menu()
@@ -33,13 +37,16 @@ void help_menu()
 
 void initialize()
 {
-    int i;
+    int i, j;
     PROC *p;
 
     printf("Initializing...");
 
     // All procs start in freeList
     freeList = proc;
+    readyQueue = NULL;
+    sleepList = NULL;
+
     for (i = 0; i < NPROC; i++)
     {
         p = &proc[i];
@@ -53,8 +60,18 @@ void initialize()
         p->event = 0;
         strcpy(p->name, pname[i]);
         p->exitValue = 0;
+
+        // Clear fd[ ] array of PROC
+        for(j = 0; j < NFD; j++)
+            p->fd[j] = 0;
     }
     p->next = NULL;
+
+    // Initialize all OFT and PIPE structures    
+    for(i = 0; i < NOFT; i++)
+        oft[i].refCount = 0;
+    for(i = 0; i < NPIPE; i++)
+        pipe[i].busy = 0;
 
     // P0 starts off running
     running = delist(&freeList);
@@ -63,7 +80,6 @@ void initialize()
     running->parent = running; // Parent = self, no parent
     nproc = 1;
 
-    readyQueue = NULL;
     set_vec(80, (u16)int80h);
 
     printf("ok\n"); 
@@ -90,17 +106,17 @@ int body()
         switch(c)
         {
             case '?' :
-            case 'h' : help_menu();    break;
+            case 'h' : help_menu();      break;
 
-            case 's' : do_tswitch();   break;
-            case 'f' : do_kfork("/bin/U1");     break;
-            case 'p' : do_ps();        break; 
-            case 'z' : do_sleep();     break; 
-            case 'a' : do_wakeup();    break; 
-            case 'w' : do_wait();      break;
-            case 'u' : goUmode();      break;
+            case 's' : do_tswitch();     break;
+            case 'f' : kfork("/bin/U1"); break;
+            case 'p' : do_ps();          break; 
+            case 'z' : do_sleep();       break; 
+            case 'a' : do_wakeup();      break; 
+            case 'w' : do_wait(NULL);    break;
+            case 'u' : goUmode();        break;
+            case 'q' : do_exit();        break; 
 
-            case 'q' : do_exit();      break; 
             default  : printf("Unrecognized Command\n");
         }
     }
@@ -115,10 +131,10 @@ int main()
     printf("-----------------\n");
     initialize(); // initialize and create P0 as running
 
-    do_kfork("/bin/U1");  // P0 kfork() P1
+    kfork("/bin/U1");  // P0 kfork() P1
 
     printQueue("readyQueue", readyQueue);
-    printf("P%d running\n", running->pid);
+    printf("P%d running...\n", running->pid);
 
     while(true)
     {
@@ -136,7 +152,7 @@ void scheduler()
     if(running->status == RUNNING)
         running->status = READY;
 
-    if (running->status == READY)
+    if(running->status == READY)
         enqueue(&readyQueue, running);
 
     running = dequeue(&readyQueue);

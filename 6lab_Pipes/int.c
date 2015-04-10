@@ -1,80 +1,68 @@
 #include "kernel.h"
 
-// LOW                                                                       HIGH
-//     usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
-//    -------------------------------------------------------------------------
-//    |uds|ues|udi|usi|ubp|udx|ucx|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
-//    -------------------------------------------------------------------------
-// Offset = Position * Size, where Size = 2 bytes or 1 word 
-
-// relative to usp 
-#define  PA_FROM_USP (13 * WORD_SIZE)
-#define  PB_FROM_USP (14 * WORD_SIZE)
-#define  PC_FROM_USP (15 * WORD_SIZE)
-#define  PD_FROM_USP (16 * WORD_SIZE)
+// LOW                                                                  HIGH
+// -------------------------------------------------------------------------
+// |uds|ues|udi|usi|ubp|udx|ucx|ubx|uax|upc|ucs|uflag|retPC| a | b | c | d |
+// -------------------------------------------------------------------------
+//  usp  1   2   3   4   5   6   7   8   9  10    11   12   13  14  15  16
+#define PA_FROM_USP (13 * REG_SIZE)
+#define PB_FROM_USP (14 * REG_SIZE)
+#define PC_FROM_USP (15 * REG_SIZE)
+#define PD_FROM_USP (16 * REG_SIZE)
 
 // ****************** syscall handler in C ******************
 int kcinth()
 {
-    u16 segment, offset;
-    int a,b,c,d, result;
-    segment = running->uss; 
-    offset = running->usp;
+    int a,b,c,d;
+    int result = FAILURE;
+
+    u16 segment = running->uss; 
+    u16 offset = running->usp;
 
     // Get syscall parameters from Ustack
-    a = get_word(segment, offset + PA_FROM_USP);
-    b = get_word(segment, offset + PB_FROM_USP);
-    c = get_word(segment, offset + PC_FROM_USP);
-    d = get_word(segment, offset + PD_FROM_USP);
+    a = get_word(segment, offset + PA_FROM_USP); // syscall #
+    b = get_word(segment, offset + PB_FROM_USP); // arg1
+    c = get_word(segment, offset + PC_FROM_USP); // arg2
+    d = get_word(segment, offset + PD_FROM_USP); // arg3
 
-    // Parameter 'a' is the syscall number
-    switch(a)
+    switch(a)  
     {
-        // Execute the desired action function
-        case 0 : result = kgetpid();            break;
-        case 1 : result = kps();                break;
-        case 2 : result = kchname((char*)b);    break;
-        case 3 : result = kkfork();             break;
-        case 4 : result = ktswitch();           break;
-        case 5 : result = kkwait((int*)b);      break;
-        case 6 : result = kkexit(b);            break;
+        case  0 : result = running->pid;               break;
+        case  1 : result = do_ps();                    break;
+        case  2 : result = chname((char*)b);           break;
+        case  3 : result = kmode();                    break;
+        case  4 : result = tswitch();                  break;
+        case  5 : result = do_wait((int*)b);           break;
+        case  6 : result = do_exit(b);                 break;
+        case  7 : result = fork();                     break;
+        case  8 : result = exec((char*)b);             break;
 
-        case 7 : result = fork();               break;
-        case 8 : result = kexec((char*)b);      break;
+        // Pipe Functions
+        case 30 : result = kpipe((int*)b);             break;
+        case 31 : result = read_pipe(b, (char*)c, d);  break;
+        case 32 : result = write_pipe(b, (char*)c, d); break;
+        case 33 : result = close_pipe(b);              break;
+        case 34 : result = pfd();                      break;
 
-        case 90: result = kgetc();              break;
-        case 91: result = kputc((char)b);       break;
+        case 90 : result = getc();                     break;
+        case 91 : color  = running->pid + 11;
+                  result = putc(b);                    break;       
 
-        case 99: result = kkexit(b);            break;
+        case 99 : do_exit(b);                          break;
 
-        default: 
-                 printf("invalid syscall # : %d\n", a); 
-                 result = FAILURE;
+        default : printf("Invalid syscall # : %d\n", a); 
+                  result = FAILURE;
     }
+
     // Put action function return value in the AX register
     // so that goUmode() can pop it off from Ustack
     put_word(result, segment, offset + UAX_FROM_USP);
-    // return (int) value >= 0 for OK, or -1 for BAD.
 
     return SUCCESS;
 }
 
-// return the proc's pid
-int kgetpid()
-{
-    return running->pid;
-}
-
-
-// Print PROC information
-int kps()
-{
-    do_ps();
-    return 0;
-}
-
 // Change running's name string
-int kchname(char* name)
+int chname(char* name)
 {
     char buf[NAMELEN];
     char *cp = buf;
@@ -94,44 +82,9 @@ int kchname(char* name)
     return SUCCESS;
 }
 
-int kexec(char* filename)
-{
-    return do_exec(filename);
-}
-
-// enter Kernel to kfork a child with /bin/u1 as Umode image
-// return child pid or -1 
-int kkfork()
-{
-    return do_kfork("/bin/U1");
-}
-// enter Kernel to switch process (call tswitch())
-int ktswitch()
-{
-    return tswitch();
-}
-
-// enter Kernel to wait for a ZOMBIE child,
-// return its pid (or -1 if no child) and its exitValue
-int kkwait(int *status)
-{
-    return kwait(status);
-}
-
 // enter Kernel to die with an exitValue
 int kkexit(int value)
 {
     // do NOT let P1 die
     return kexit(value);
 }
-
-int kgetc()
-{
-    return getc();
-}
-
-int kputc(char c)
-{
-    return putc(c);
-}
-

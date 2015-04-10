@@ -75,11 +75,14 @@ USER2_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
 KERNEL := $(OS)
 KERNEL_OBJ_DIR := $(OBJ_DIR)
 KERNEL_OBJECTS := $(addprefix $(KERNEL_OBJ_DIR)/, \
-				 ts.o wait.o kernel.o vkernel.o int.o main.o)
+				 ts.o wait.o fork_exec.o pipe.o   \
+				 kernel.o int.o main.o)
 
 # Decided to use the verbose but explicit method instead
 # Specifies a list of directories that make should search
 #VPATH := $(BOOT_DIR) $(LIB_DIR) $(USER_DIR)
+
+HIDE_WARNINGS := 2>/dev/null
 
 ################################################################
 ## Operating System 
@@ -121,7 +124,7 @@ $(KC_IMAGE): | $(DISK_DIR)
 ################################################################
 
 $(BOOTER): $(BOOT_OBJECTS)
-	$(LINK) $+ $(LFLAGS) -d -o $@
+	$(LINK) $+ $(LFLAGS) -d -o $@ $(HIDE_WARNINGS)
 	
 	@SIZE=$$(du -b "$(BOOTER)" | cut -f 1); \
 	if [ $$SIZE -le 1024 ] ; then \
@@ -201,7 +204,7 @@ $(LIB_OBJ_DIR)/transfer.o: $(LIB_DIR)/transfer.c type.h
 ################################################################
 
 $(USER1): $(USER1_OBJECTS) $(LIB)
-	$(LINK) $+ $(LFLAGS) -o $@ 
+	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
@@ -210,7 +213,7 @@ $(USER1): $(USER1_OBJECTS) $(LIB)
 	@echo -ne "$(NO_COLOR)"
 	
 $(USER2): $(USER2_OBJECTS) $(LIB)
-	$(LINK) $+ $(LFLAGS) -o $@
+	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
@@ -246,7 +249,7 @@ $(USER_OBJ_DIR)/u2.o: $(USER_DIR)/u2.c $(USER_DIR)/user.h
 ################################################################
 
 $(KERNEL): $(KERNEL_OBJECTS) $(LIB)
-	$(LINK) $+ $(LFLAGS) -d -o $@
+	$(LINK) $+ $(LFLAGS) -d -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
@@ -270,10 +273,13 @@ $(KERNEL_OBJ_DIR)/main.o: main.c ts.s kernel.h
 $(KERNEL_OBJ_DIR)/wait.o: wait.c ts.s kernel.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(KERNEL_OBJ_DIR)/kernel.o: kernel.c ts.s kernel.h
+$(KERNEL_OBJ_DIR)/fork_exec.o: fork_exec.c ts.s kernel.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(KERNEL_OBJ_DIR)/vkernel.o: vkernel.c ts.s kernel.h
+$(KERNEL_OBJ_DIR)/pipe.o: pipe.c ts.s kernel.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(KERNEL_OBJ_DIR)/kernel.o: kernel.c ts.s kernel.h
 	$(CC) $(CFLAGS) $< -o $@
 
 $(KERNEL_OBJ_DIR)/int.o: int.c kernel.h
@@ -312,7 +318,12 @@ super_duper_clean: super_clean
 	@echo -e "$(WARN_COLOR)Warning: Deleting $(KC_IMAGE)... $(NO_COLOR)"
 	rm -r $(DISK_DIR)
 
-debug: super_clean all run
+show_warnings:
+HIDE_WARNINGS :=
+
+debug: | show_warnings all run
+
+debug_make: | super_clean show_warnings all
 
 ################################################################
 ## Make Help
