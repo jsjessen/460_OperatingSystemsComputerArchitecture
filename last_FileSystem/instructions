@@ -1,407 +1,343 @@
-              File System in MTX
+                     LAST LAB ASSIGNMENT
+                   DUE and DEMO: CLOSE WEEK
 
-1. File I/O Operations
- 
-    Figure 1 shows a diagram of file I/O operations. In the diagram, the 
-upper part above the double-dashed line represents the kernel space, and the 
-lower part represents the user space of a process. The diagram intends to show 
-the sequence of actions when a process opens a file stream for read/write, and 
-then performs a read or write operation on the file stream. Control flows are 
-identified by the labels (1) to (10) in the diagram, which are explained in 
-detail following the diagram. 
-                                                      
- ----------------------- File System in Kernel Space -------------------------
-     PROC                       (8)              (9)          
-    ------               ---> Minode[ ]      BUFFER CACHE 
-    |pid |               |  ----------|     --------------
-    |cwd |      (7)      |  |  INODE  |     |  bp=(d,b)  | 
-(6) fd[fd]--> OpenTable  |  | -----   |     -------------- 
-    |    |   ----------  |  |i_size   |         (10)          
-    |    |   |mode=R|W|  |  |i_block[]|     --Device I/O -    
-    |    |   | mptr-------  |         |     | start_io() |  <==> ====Device ====
-    |    |   |offset  |     |(dev,blk)|     | dev_IOQueue|       |   blocks    |
-    ------   ----------     |dirty    |     --------------       ===============
-                            ------------                       
-     
-     -------------------------- kernel functions -------------
- (5) | kopen(),kclose(),kread(),kwrite(),klseek(),kstat()....|
-     ---------------------------------------------------------
-                                                         |
- ======================================================= | ====================
-       --------                                          |
-(1).   |uCode |          (2)              ----  (4) System calls-------------
-FILE *fp=fopen( ) ==>  FILE sruct         |    open|read|write|lseek|close  |
-       |udata |   -----------------       -----------------------------------
-       |ubuf[]|   |int fd=open( ) |                      |
-       |      |   |fbuf[BLKSIZE]  | <=> --------- (3) Library I/O -------------
-       |uheap --> |counter,bytePtr|     | fread()|fwrite|ffush|fseek|fclose   |
-       |      |   |other status   |     |getchar()| putchar()|scanf()|printf()|
-       |      |   -----------------     |  fgets()|fputs()|fscanf|fprintf()   |
-       |uStack|                         |getchar()| putchar()|scanf()|printf()| 
-       --------                         ---------------------------------------
-       User Image
-
-JJ: fwrite(write to buffer until full, then use syscall to write to actual file)
-    Don't go to disk right away, first check the Buffer Cache!
-    Could be reading/writing with a pipe instead of an Inode
-
-    Inode could be a special file, aka a device
-    Block 0 of special Inode
-    [major | minor]
-     type#   on the device, which unit
-       /       \
-     3=HD      2=P2
-
-
------------------------------- User Space -----------------------------------
-
-                 Figure 1. File Operation Diagram
-
-Legends:
---------------------- User Mode Operations -----------------------------------
-(1). A process in User mode executes
-
-       FILE *fp = fopen("file", "r"); OR "w", etc.
- 
-(2). fopen() creates a FILE struct in user (heap) space with a fbuf[BLKSIZE]. 
-     fopen() issues  int fd = open("file", O_RDONLY) syscall to Kernel's
-     kopen(), which constructs an Opentable pointing to the file's INODE in 
-     memory. For non-special files, INODE's i_block[ ] points to data blocks on
-     device. On success, fp points at the FILE struct containing fd returned by
-     the open() syscall.
-
-(3). fread(ubuf[ ], size, nitem, fp): READ nitem of size each to ubuf[ ] by
-      .copy data from FILE struct's fbuf[ ] to ubuf[ ], if enough, return;
-      .if fbuf[ ] has no more data, then execute (4a).
-      ---------------------------------------------------------------------
-(4a). issue read(fd, fbuf[ ], BLKSIZE) syscall to Kernel to read a block to 
-      fbuf[ ], then copy data to ubuf[ ] until enough or file has no more data.
-
-(4b). fwrite(ubuf, size, nitem, fp): try copy data to fbuf[ ];
-       .if (fbuf[ ] has room): copy data to fbuf[], return;  
-       .if (fbuf[ ] is full) : issue write(fd, fbuf, BLKSIZE) syscall to write
-                               a block to Kernel, then write to fbuf[ ] again.
-  
-      fflsuh(fp) ==> write fbuf[ ] to Kernel immediately.
-
-      OTHER Library I/O: fputc(),fgetc(),fgets(),fputs(),fscanf(),fprintf(),etc.
-      ALL operate on fbuf[ ] in the FILE struct.
-
-Thus, fread() issues read(), and fwrite() issues write(), syscalls to kernel, 
-but they do so only if necessary and they transfer data in chunks of block size
-for better efficiency.
-
-=================== Kernel Mode Operations ===================================
-(5).File system functions in Kernel.
-    Assume read(fd, fbuf[ ], BLKSIZE) syscall of non-special file. 
-
-(6). In a read() syscall, fd is an opened file descriptor, which is an index
-     in the running PROc's fd[ ] array. The contents of PROC.fd[fd] points to an
-     openTable, which represents the opened file. (7) uses the running PROC's 
-     fd[fd] to access the openTable.
-
-(7). The openTable contains the files's open mode, a pointer to the file's INODE
-     in memory and the current byte offset into the file for read/write. From 
-     the openTable's offset, 
-        .Compute logical block number, lbk;
-        .Map logical block number, lbk, to physical block number, blk, via 
-         INODE's i_block[ ] array at (8).
-
-(8). Minode contains the in-memory INODE of the file. INODE.i_block[ ] contains
-     pointers to physical disk blocks. A file system may use the physical block
-     numbers to read/write data from/to the disk blocks directly, but these 
-     would incur too much physical disk I/O.
-
-(9). In order to improve disk I/O efficiency, most OS kernels use a I/O buffer 
-     cache to reduce the number of physical disk I/O.  
-       
-(9a). For a read(fd, buf, BLKSIZE) syscall, determine the needed (dev, blk) 
-      number, then consult the I/O buffer cache to
-         . get a buffer = (dev, blk);
-         . if (buffer's data are invalid){
-               start_io on buffer;
-               wait for I/O completion;
-           }
-         . copy data from buffer to fbuf[ ];
-         . release the buffer to the buffer cache.
-
-(9b). For a write(fd, fbuf, BLKSIZE) syscall, determine the needed (dev, blk)
-      number, then consult the I/O buffer cache to 
-         . get a buffer = (dev, blk);
-         . write data to the I/O buffer;
-         . mark the buffer as dataValid and DIRTY (for delayed write to disk);
-         . release the buffer to the buffer cache.
-
-(10): Device I/O: Physical disk I/O operations on the I/O buffers ultimately go
-      through the device driver, which consists of start_io() in the upper half
-      and the disk interrupt handler in the lower half of the driver.
- 
-      ---------------- Upper half of disk driver -----------------
-      start_io(bp):  // bp = a locked buffer, in dev_list, opcode=R|W (ASYNC)
-      {       
-        1. enter bp into dev's I/O_queue;
-        2. if (bp is FIRST in I/O_queue)
-              issue I/O command to device (hardware);
-      }       
-      --------------- Lower half of disk driver -----------------
-      Device_Interrupt_Handler:
-      {  
-         get dev from intrruptStatus; 
-         bp = dequeue(first buffer from dev.I/O_queue);
-         if (bp was READ){
-             mark bp dataVALID;
-             wakeup/unblock waiting process on bp;
-         }
-         else      //  assume bp was for delay write
-             brelse(bp);
-
-         if (dev.I/O_queue NOT empty)
-            issue I/O command for first buffer in dev.I/O_queue;
-      }
-
-
-2. Implementation of EXT2 File System
-
-   Figure 2 shows the internal organization of an EXT2 file system.
-
- | < ---------------- Kernel -------------------->  | < ------  Device ------>
-                                                    |
-(1).  PROC       (2). root / ------> minode[0]      |         rootDev
-     ------                        ============     |    ====================
-     |pid |                        |  INODE    | <=======|<== INODE#2       |
-     |    |                        | --------  |    |    ====================
-     |cwd -----------------------> |(rootDev,2)|    |  
-     | ...|                        | dirty     |    |
-                                   | refCount  |    |
-     |fd[]|      (3).              | mounted=1 |    |
-     | .------>  openTable[ ]      | mtabPtr   |    |
-     |    |     ---------------    | lock      |    |
-     ------     |mode=R|W|RW|A|    ============     |
-                |refCount     |       (4).          |
-                |minodePtr ------>  minode[ ]       |        BlockDevice
-                |offset       |    =============    |     ==================
-                ---------------    |  INODE    |    |    | INODE -> blocks|
-                                   |-----------|    |     ==================
-                                   |(dev, ino) |    | 
-                                   | dirty     |    |
-                                   | refCount  |    |
-                                   | mounted   |    |
-                                   | mntabPtr  |    |
-                                   | lock      |    |
-                                   =============    |
-                                                    |
-                 (5).    mntTable[ ]                |
-                ------- 0 --------- 1 --------      |
-                | dev          |             |      |
-                | mntPointPtr  |             |      |
-                | fileSysName  |             |      |
-                ------------------------------      |
-                                                    |
-  ---------------------------------------------------------------------------
-                Figure 2. EXT2 FS Data Structures
-
-(1) is the PROC structure of the running process. Each PROC has a cwd, which 
-points to the in-memory INODE of the PROC's Current Working Directory. 
- 
-(2) is the root pointer of the file system, which points to the in-memory root 
-INODE. When the system starts, one of the devices is chosen as the root device,
-which must be a valid EXT2 file system. The root INODE (inode #2) of the root 
-device is loaded into memory as the root (/) of the file system. This operation
-is known as "mount the root file system". For each mounted file system, an entry
-in the mount table, mntTable[ ] shown at (4), is used to record the mounted file
-system. In the in-memory INODE of the mount point, the mounted flag is turned on
-and the mntabPtr points to the mount table entry. In the corresponding mount 
-table entry, mntPointPtr points back at the in-memory INODE of the mount point.
-As will be shown later, these doubly-linked pointers allow us to cross mount 
-points while traversing the file system tree.
-
-(3) is an openTable entry. When a PROC opens a file, an entry of the PROC's fd[]
-array points to an openTable, which points to the in-memory INODE of the opened
-file.
-
-(4) is an in-memory INODE. Whenever a file or directory is needed, its INODE
-is loaded into a minode[ ] entry for reference. Since INODES are unique, only 
-one copy of each INODE can be in memory at any time. In the minode entry, (dev,
-ino) identify where the INODE came from, for writing back to disk if the INODE 
-is modified. The refCount field records the number of processes that are using 
-the minode. The dirty field indicates whether the INODE has been modified while
-in memory. The mounted flag indicates whether the INODE has been mounted on and,
-if so, the mntabPtr points to the mount table entry of the mounted file system.
-The lock field is to ensure that an in-memory INODE can only be accessed by one
-process at a time, e.g. when modifying the INODE or accessing its data blocks in
-a read/write operation.
-
-(5) is a table of mounted file systems. Each entry contains the file system's
-device name, device number and a pointer to in-memory INODE of the mount point.
-For convenience and efficiency, some other information of the mounted file 
-system, such as the superblock, group descriptor and bitmaps, may also be kept 
-in the mount table entry for quick reference.
-
-
-3. Implementation
- 
-   The implementation of the file system is divided into three levels. Each
-level deals with a distinct part of the file system that can be implemented and
-tested almost independently. This helps make the development process modular and
-easier to understand.
-
-Level-1 deals with traversing the file system tree. It contains the following
-files, which implement the indicated functions.
-
-   -------------------- Level-1 of FS ----------------------------
-   mkdir_creat.c      : make directory and create file
-   rmdir.c            : remove directory
-   cd_pwd_stat.c      : change directory, get CWD path and file stat info
-   link_unlink.c      : hard link and unlink files
-   symlink_readlink.c : symbolic link files
-   misc1.c            : access, chmod, chown, touch, etc.
-  -----------------------------------------------------------------
-
-   User level programs that make use of level-1 functions include
-        mkdir, creat, rmdir, link, unlink, symlink, rm, ls, cd and pwd,
-which can be used to test the level-1 implementation.
-
-
-Level-2 deals with file contents. It contains the following files, which
-implement the functions for reading/writing file contents.
-   ---------------------- Level-2 of FS -------------------------------
-   open_close_lseek.c  : open file for READ|WRITE|APPEND, close file and lseek
-   read.c              : read from an opened file descriptor
-   write.c             : write to an opened file descriptor 
-   opendir_readdir.c   : read/write directory 
-   dev_switch_table    : read/write special files
-   block device I/O buffer management : I/O buffer management
-
-
-
-Level-3 implements mount and umount operations and file protection.
-   ---------------------- Level-3 of FS ------------------------------
-   mount_umount.c      : mount/umount file systems
-   file protection     : access permission checking
-   file-locking        : lock/unlock files
-   ------------------------------------------------------------------
-
-
-4. Read/write Special Files:
-
-  In the read()/write() algorithms, reading/writing pipes and special files are
-treated differently. Reading/writing pipes are implemented in the pipe mechanism
-in the MTX kernel. Here we only consider reading/writing special files. Each
-special file has a file name in the /dev directory. The file type in a special
-file's inode is marked as special, e.g. 0060000 = block device, 0020000 = char 
-device, etc. Since a special file does not have any disk block, INODE.i_block[0]
-is used to store the device's (major, minor) number, where major=device type and
-minor=unit of that device type. For example, /dev/fd0=(2,0), /dev/tty0=(4,0) and
-/dev/ttyS1=(5,1), etc. The major device number is an index in a device switch 
-table, dev_sw[ ], which contains pointers to device driver functions, as in
-
-         struct dev_sw {
-             int (*dev_read)();
-             int (*dev_write)();
-         } dev_sw[];
-
-Assume that int nocall(){ } is just an empty function, and
-
-         fd_read(), fd_write(),           // floppy disk read/write
-         hd_read(), hd_write(),           // hard disk read/write
-         console_read(), console_write(), // console read/write
-         serial_read(), serial_write(),   // serail port read/write 
-         printer_write();                 // printer write()
-
-    JJ: console_read = getc()
-        console_write = putc()
-        serial_read = sgetc()
-        serial_write = sputc()
-
-are device driver functions. The device switch table is set up to contain the
-driver function pointers, as shown below.
-
-         struct dev_sw dev_sw[ ] =
-         { //   read           write  
-           // --------        --------
-              nocall,          nocall,           // 0 /dev/null (blackhole)
-              nocall,          nocall,           // 1 kernel memory
-              fd_read,         fd_write,         // 2 FD
-              hd_read,         hd_write,         // 3 HD
-              console_read,    console_write,    // 4 console
-              serial_read,     serial_write,     // 5 serial ports
-              nocall,          printer_write     // 6 printer
-         };
-
-    JJ: Major type# is index indicating which functions to use for read/write
-        Floppy Disk = FD
-        FD(2,0) = 1st floppy disk
-        FD(2,1) = 2nd floppy disk
-        Why 2=FD and 3=HD? Just how it was setup in original Linux, arbitrary.
-        systematic routine for each device
-
-Then, reading/writing a special file becomes
-
-      (1). get special file's (major, minor) number from INODE.i_block[0];
-      (2). return (*dev_sw[major].dev_read)(minor, parameters);  // for READ (invoke function from table, passing parameters)
-      OR   return (*dev_sw[major].dev_write)(minor, parameters); // for WRITE
+JJ: Write your command in file "cmdname.c"
+    Running mku cmdname (or with .c?) will compile it and add to mtx's /bin
+    Now when you run mtx, the command can be used
+    root : 12345
+    kcw : abcde (not root)
+    guest : mercy
+    buster : 124
       
-(2). invokes the corresponding device driver function, passing as parameters
-the minor device number and other parameters as needed. The device switch table
-is a standard technique used in all Unix-like systems. It makes the I/O
-subsystem structure clear and it greatly reduces the read/write code size.
-Hopefully, this also answers an age-old question from many curious students,
-namely why is the device number of floppy drives 2 and that of hard drives 3, 
-etc. It's because the original Unix designers set up their device switch table 
-this way, and everyone else has been a copycat ever since.  
+1. MTX in ~samples/LAST/
 
-5. open_dir()/readdir(): 
+1.1. Download all the files.
+   vdisk is a flat IDE HD image with 4 partitions, each has a different version
+   of MTX.
 
-    Unix/Linux considers everything as a file. Therefore, we should be able to 
-open a DIR for read just like a regular file. So technically there is no need
-for a separate set of opendir() and readdir() functions. Since different Unix
-systems may use different file systems, it may be difficult for a user to 
-interpret the contents of a DIR file. For this reason, the POSIX standard 
-specifies opendir()/readdir() operations, which should be independent of file 
-systems. Support for opendir() is trivial. It's the same open syscall. However,
-readdir() has the form
-          struct dirent *ep = readdir(DIR *dp);
-which returns a pointer to a dirent struct on each call. This calls for a user-
-level implementation similar to a library I/O function. Since MTX does not have
-user-leverl library stream I/O, we shall implement opendir() and readir() as
-syscalls:
-    
-   int opendir(pathaname)
-   {
-       return open(pathname, O_RDONLY|O_DIR);
-   }
+   Partition   MTX version
+  ---------------------------------------------------------------------------
+     1         rmtx     MTX in 16-bit real mode
+     2         pmtx     MTX in 32-bit protected mode using dynamic paging
+     3         smp      SMP_MTX in protected mode supporting up to 16 CPUs
+     4         mtx32.1  MTX in protected mode using segmentation
+ -----------------------------------------------------------------------------
+ 
+   !!! SAVE A COPY OF vdisk IN CASE YOU TRASHED IT, or download it again
 
-where O_DIR is a bit pattern for openning the file as a DIR. In the open file
-table, the mode field contains the O_DIR bit.
+   ========================================================================
+1.2.  To re-istall MTX to partitions of vdisk: Download MTXinstallCD.iso. 
+      Run
+          qemu -hda vdisk -cdrom MTXInstallCD.iso -boot d
 
-   int readdir(int fd, struct udir *dp) // struct udir{ DIR; name[256]};
-   {
-       // same as read() in kernel except:
-       use the current byte offset in OFT to read the next DIR record;
-       copy the DIR record into *udir in Umode;
-   }
+   to boot up Linux. Then, run  install  and follow the instructions
+   =========================================================================
 
-User mode programs must use the readdir(fd, struct udir *dir) syscall instead
-of the readdir(DP) call.
+1.3. Read the script q, which is for running MTX from vdisk.
+     To run q on vdisk: you need 
 
-JJ: int (*f[ ])() = { getpid, getppid, ... };  // Table of function pointers
-    Have been working in 16-bit real mode (the first partition on KC's OS)
-    -m 520m how much memory
-    -smp $1 how many cpu's
-    ps = 
-    pts/1  terminal 1
-    pts/2  terminal 2
+       /dev/pts/1 and /dev/pts/2 for serail ports, /dev/pts/3 for parinter
+       A virtual CDROM image, such as MTXinstallCD.iso
 
-    modify q command to mach number
+1.4. Read the mku script to see how to generate a NEW user mode command
+     Example:  mku test ===> generate user mode command from test.c in rmtx.
 
-    have shell goto sleep (sleep 10000000) so io will be grabed by our serial driver, not shell
+2. Syscalls in MTX Kernel
 
-    -serial /dev/pts/2 \ -parallel /dev/pts/3
+   ====================== MTX System Call Functions ======================
+   Number  Name          Usage                         Function  
+   ------ ---------  ---------------------------  ------------------------
+     0    getpid       getpid()                    get process pid  
+     1    getppid      getppid()                   get parent pid
+     2    getpri       getpri()                    get priority
+     3    setpri       setpri(pri)                 set priority
+     4    getuid       getuid()                    get uid
+     5    chuid        chuid(uid,gid)              set uid,gid
+     6    yield        yield()                     switch process
+     9    exit         exit(value)                 terminate process
+    10    fork         fork()                      fork child process
+   *11    exec         exec(cmd_line)              change image to a file
+    12    wait         wait(&status)               wait for child to die
+    13    vfork        vfork()                     fork child process
+    14    thread       thread(fd,stack,flag,prt)   create thread
+    15    mutex_creat   mutex_creat()
+    16    mutex_lock    mutex_lock(&mutex)
+    17    mutex_unlock  mutex_unlock(&mutex)
+    18    mutex_destroy mutex_destroy(&mutex)
+   ----------------------------------------------  -----------------------
+    20    mkdir        mkdir(pathname)             make directory
+    21    rmdir        rmdir(pathname)             rm   directory
+    22    creat        creat(pathname)             creat file
+    23    link         link(oldname, newname)      hard link to file
+    24    unlink       unlink(pathname)            unlink
+    25    symlink      symlink(oldname,newname)    create symbolic link
+    26    readlink     readlink(name, buf[ ])      read symlink 
+    27    chdir        chdir(pathname)             change dir
+    28    getcwd       getcwd(buf[ ])              get cwd pathname
+    29    stat         stat(filename, &stat_buf)    stat file
+    30    fstat        fstat(fd, &stat_buf)        stat file descriptor
+    31    open         open(filename, flag)        open file for R|W|APP
+    32    close        close(fd)                   close file descriptor 
+   *33    lseek        lseek(fd, position)         lseek 
+    34    read         read(fd, buf[ ], nbytes)    read file
+    35    write        write(fd,buf[ ], nbytes)    write to file
+    36    pipe         pipe(pd[ ])                 carete pipe
+    37    chmod        chmod(filename, mode)       change permission
+    38    chown        chown(filname, uid)         change file owner
+    39    touch        touch(filename)             change file time
+    40    settty       settty(tty_name)            set proc.tty name
+    41    gettty       gettty(buf[ ])              get proc.tty name
+    42    dup          dup(fd)                     dup file descriptor
+    43    dup2         dup2(fd1, fd2)              dup fd1 to fd2
+    44    ps           ps()                        ps in kernel
+    45    mount        mount(FS, mountPoint)       mount file system
+    46    umount       umount(mountPoint)          umount file system
+    47    getSector    getSector(sector, buf[ ])   read CDROM sector
+    48    cd_cmd       cd_cmd(cmd)                 issue cmd to CD driver
+  -----------------------------------------------  -----------------------
+    50    kill         kill(sig#, pid)             send signal to pid
+    51    signal       signal(sig#, catcher)       install siganl handler
+    52    pause        pause(t)                    pause for t seconds
+    53    itimer       itimer(sec, action)         set timer request
+    54    send         send(msg, pid)              send msg to pid
+    55    recv         sender=recv(msg)            receive msg 
+    56    tjoin        tjoin(n)                    threads join
+    57    texit        texit(value)                tthread exit
+    58    hits         hits()                      I/O buffer hit ratio
+    59    color        color(v)                    change display color
+    60    sync         sync()                      sync file system
+  ==========================================================================
 
-    P0 -> P1 -> init.c (instead of u1.c) -> ... -> login
+
+    MTX syscalls are organized into 4 groups. Group 1 (0-19) is for process 
+management. Group 2 (20-49) is for file system operations. Group 3 is for 
+signals and signal processing, and Group 4 is for miceseleous system calls. All
+the syscall functions in Groups 1-3 are compatible with those of Unix/Linux. 
+
+The only exception is exec(cmd_line). In Unix, when a user enters a command line
+         a.out  arg1  arg2 ... argn
+it is used in execl() as execl(a.out, a.out, arg1, arg2,...,argn, 0); or as 
+argc, argv[] in          execv(argc, argv);
+
+In MTX, the entire command line is used in the exec() call. For example, if you
+enter cat filename to the MTX sh, the child sh uses
+
+          exec("cat filename");
+
+to change its execution image to the cat program. However, the entire command
+line is passed to the new image when execution starts. Parsing the command line
+into argc and argv[] is done by a C start up code, crt0, in the new image.
+
+3. Operation of the MTX system:
+   The HD partition of MTX is an EXT2 FS containing
+
+            /---|
+                |----bin/ : All binary executables are in /bin
+                |
+                |---dev/ : special files tty0  c 4 0 
+                |                        ttyS0 c 5 0 
+                |                        ttyS1 c 5 1   
+                |                        lp0   c 6 0
+                |---etc/ : passwd file 
+                |           
+                |---boot/: bootable MTX images
+                |
+                |---user/: users HOME directories
+  
+  After mounting the root file system, P0 creats P1, whose Umode image is 
+  the /bin/init program. P1 will go Umode directly to execute /bin/init, 
+  in which it forks children P2 on /dev/tty0. If the VM supports serial ports,
+  P1 may also fork P3 /dev/ttyS0 and P4 on /dev/ttyS1. Then P1 waits for any 
+  child to die. Henceforth, P1 plays the role of the INIT process (P1) in Unix.
+
+                          Proc#2:
+  (1). P2 is a login process. It executes /bin/login on the console terminal 
+       /dev/tty0. So the special file /dev/tty0 MUST exist. To support serial 
+       terminals and printer, /dev/ttyS0, /dev/ttyS1 and /dev/lp0 must also 
+       exist.
+
+  (2). In /bin/login, P2 opens its tty special file (/dev/tty0) as stdin(0), 
+       stdout(1) and stderr(2). Then it displays (to its stdout)
+                  login: 
+
+  and waits for a user to login. When a user tries to login, it reads the
+  user name and password (from its stdin), opens the /etc/passwd file to 
+  authenticate the user. Each line of /etc/passwd has the format:
+
+          username:password:gid:uid:fullname:HOMEDIR:program
+  e.g.    root:xxxxxxx:1000:0:superuser:/root:sh
+
+  (Use plain text for password OR devise your own encryption schemes)
+
+  If the user has a valid account in /etc/passwd, P2 becomes the user's process
+  (by taking on the user's uid). It chdir to user's HOMEDIR and execute the 
+  listed program, which is normally the sh (/bin/sh).
+ 
+  (3). then (in sh) it loops forever (until "logout" or Contro-D):
+        {
+           prompts for a command line, e.g. cmdLine="cat filename"
+           if (cmd == "logout") 
+              syscall to die;
+
+           // if just ONE cmd:  
+           pid = fork();
+           if (pid==0)
+               exec(cmdLine);
+           else
+               pid = wait(&status);
+        }    
+
+   (3). When the child proc terminates (by exit() syscall to MTX kernel), it 
+   wakes up sh, which prompts for another cmdLine, etc.
+
+   (4). When sh dies, it wakes up its parent, INIT, which forks another
+        login process.         
+==========================================================================
+
+4. OBJECTIVES:
+
+   The purpose of this assignment is for you to write YOUR OWN 
+   init, login, sh and other user command programs. Among these, sh is the
+   most important. Accordingly, it will carry the most weight. 
+
+=============================================================================
+
+                      5. ASSIGNMENTS:
+                     DUE in CLOSED week
+                 Demo and INTERVIEW during DEMO
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+5-1. Develop YOUR OWN programs for
+             init                    // for process P1 
+             login                   // for login processes
+             cat   [filename]        // cat filename or stdin to stdout
+             more  [filename]        // more as in Unix                
+             grep  pattern [ilename] // print lines containing pattern 
+             lower2upper [f1 f2]     // convert lower case to upper case
+             cp    src dest          // src may be a file or DIR
+
+     NOTE: [filename] means OPTIONAL. 
+           If no filenames, use stdin for IN and stdout for OUT
+          
+5-2. Write YOUR OWN sh.c to support I/O redirections and pipes:
+
+     Examples:  cat [filename]   // NOTE: cat may NOT need a filenmae
+                cat [filename] >  newfile 
+                cat [filename] >> appendFile                           
+                a.out < inFile   // read inputs from inFile 
+                cat filename | more
+                cat filename | grep test
+                cat filename | l2u | grep PRINT
+
+                cat filename > /dev/lp0   /* print filename */
+                cp  filename /dev/lp0     /* print filename */
+   
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+JJ: KC already has an init
+    but if you create an init of the same name, it will replace his
+
+//*************************************************************************
+//                      Logic of init.c 
+// NOTE: this init.c creates only ONE login process on console=/dev/tty0
+// YOUR init.c must also create login processes on serial ports /dev/ttyS0
+// and /dev/ttyS1.. 
+//************************************************************************
+
+int pid, child, status;
+int stdin, stdout;
+
+#include "ucode.c"  <========== AS POSTED on class website
+
+main(int argc, char *argv[])
+{
+  1. // open /dev/tty0 as 0 (READ) and 1 (WRTIE) in order to display messages
+
+  2. // Now we can use printf, which calls putc(), which writes to stdout
+     printf("KCINIT : fork a login task on console\n"); 
+     child = fork();
+
+     if (child)
+         parent();
+     else             // login task
+         login();
+}       
+
+// JJ: must be able to login from multiple terminals (serial ports)
+int login()
+{
+  exec("login /dev/tty0");
+}
+      
+int parent()
+{
+  while(1)
+  {
+    printf("KCINIT : waiting .....\n");
+
+    pid = wait(&status);
+
+    if (pid == child)
+        fork another login child
+    else
+        printf("INIT : buried an orphan child %d\n", pid);
+  }
+}
 
 
-    /etc/++x (each line fork child and run, a line for each terminal/serial port)
+//***********************************************************************
+//                   LOGIC of login.c file
+//***********************************************************************
+char *tty;
 
-    KC will give kernel syscalls
-    you write user mode functions
+main(int argc, char *argv[])   // invoked by exec("login /dev/ttyxx")
+{
+  tty =  argv[1];
+
+    // JJ: close anything you may of inherited from your parent
+ 1. close(0); close(1); close(2); // login process may run on different terms
+    // JJ: parent is init() on console
+
+    // JJ: printing won't work until you open your own FD
+ 2. // open its own tty as stdin, stdout, stderr
+    // JJ: Now we have our own 0, 1, 2 and can printf
+    //     every process must remember which tty (terminal) it is running on
+    //     printf shouldn't be showing up on another guys terminal!
+
+ 3. settty(tty);   // store tty string in PROC.tty[] for putc()
+
+  // NOW we can use printf, which calls putc() to our tty
+  printf("KCLOGIN : open %s as stdin, stdout, stderr\n", tty);
+
+  signal(2,1);  // ignore Control-C interrupts so that 
+                // Control-C KILLs other procs on this tty but not the main sh
+
+  while(1)
+  {
+    1. show login:           to stdout
+    2. read user name        from stdin
+    3. show passwd:
+    4. read user passwd
+
+    5. verify user name and passwd from /etc/passwd file
+    // JJ: open the file in read-only mode
+    //     tokenize the different fields
+    //     strcmp  name with name, and pword with pword
+
+    6. if (user account valid){
+          setuid to user uid. (think he said setgid is done at the same time as setuid)
+          chdir to user HOME directory.
+          exec to the program in users's account
+       }
+       printf("Login failed, try again\n");
+  }
+}
+
+JJ: should be able to just use logic from 360 lab3
+==========================================================
+                   sh Program:
+YOUR sh must support
+(1). logout/exit :  terminate
+(2). simple command exceution, e.g. ls, cat, .... (anything in the bin dir)
+(3). I/O redirection:  e.g. cat < infile;  cat > outfile, etc. (JJ: file names should be optional)
+(4). (MULTIPLE) PIPEs: e.g. cat file | l2u | grep LINE 
+===========================================================
