@@ -21,7 +21,7 @@ typedef enum { false, true } bool;
 
 typedef struct oft
 {
-    int    mode;
+    int    mode;   // READ, WRITE, READ_PIPE, WRITE_PIPE, etc
     int    refCount;
     struct pipe *pipe_ptr;
 } OFT;
@@ -29,9 +29,13 @@ typedef struct oft
 typedef struct pipe
 {
     char   buf[PSIZE];
-    int    head, tail, data, room;
-    int    nreader, nwriter;
-    int    busy;
+    int    room; // Empty space in pipe
+    int    data; // Number of bytes in pipe, initially 0
+    int    head; // In
+    int    tail; // Out
+    int    nreader; // Number of Readers
+    int    nwriter; // Number of Writers
+    bool   busy; // True = In Use, False = Free
 }PIPE;
 
 typedef struct proc
@@ -54,7 +58,7 @@ typedef struct proc
     int    event;         // sleep event
     int    exitValue;     // cause of death
 
-    OFT    *fd[NFD];      // Open File Descriptor Table
+    OFT    *fd[NFD];      // Open File Descriptors
 
     int    kstack[SSIZE]; // SSIZE=1024 this process's stack
 }PROC;
