@@ -230,6 +230,15 @@ $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
                 cat filename > /dev/lp0   /* print filename */
                 cp  filename /dev/lp0     /* print filename */
+
+
+                JJ: cat be careful with "cat f1 > f1" because to display on screen
+                    cat needs to add \r with each \n
+                    but when redirection is used, cat should ommit \r
+                    or else f2 will note the same size (# of char)
+
+                    does Linux more work with multiple files as input (think mine is supposed to handle that)
+
    
 $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
