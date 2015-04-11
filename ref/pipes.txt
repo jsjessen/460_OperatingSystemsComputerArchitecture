@@ -361,7 +361,7 @@ if you call showPipe() to display the pipe conditions and contents.
    samples/LAB6.pipe
 
 6. DEMO PROGRAM:
-   samples/LAB6.pipe.solution/mtximage, q
+   samples/LAB6.pipe.sooution/mtximage, q
 
 7. Diagrams of Pipe Operations:
 

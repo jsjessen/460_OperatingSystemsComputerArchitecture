@@ -5,19 +5,11 @@ char *MODE[] = { "READ_PIPE ", "WRITE_PIPE" };
 
 void show_pipe(PIPE *p)
 {
-    // displays the contents of the pipe, e.g.
-    //       ------------------------------------------------------   
-    //        #data = number of chars currently in the pipe;
-    //        #room = number of rooms available in the pipe;
-    //        contents = "........."; (actual chars in the pipe).
-    //       ------------------------------------------------------
-    //int i, j;
-
     printf("------------ PIPE CONTENTS ------------\n");     
-    printf("Data = %d                  Room = %d\n");
-    printf("#readers = %d              #writers = %d\n");
-    printf("Contents = \"%s\"\n");
-    printf("\n---------------------------------------\n");
+    printf("Data = %d                  Room = %d   \n", p->data, p->room);
+    printf("#readers = %d             #writers = %d\n", p->nreader, p->nwriter);
+    printf("Contents = \"%s\"                    \n\n", p->buf);
+    printf("---------------------------------------\n");
 }
 
 int pfd()
@@ -31,28 +23,26 @@ int pfd()
         return SUCCESS;
     }
 
-    printf("=============================\n");
-    printf("   FD    Type    Mode    Ref \n");
-    printf("  ----  ------  ------  -----\n");
+    printf("=========================\n");
+    printf("   FD     Mode     Ref       \n");
+    printf("  ----   ------   -----      \n");
     for(i = 0; i < NFD; i++)
     {
         if((op = running->fd[i]) != NULL)
-            printf("   %d    PIPE    %s      %d \n", i, op->mode, op->refCount);
+            printf("   %d      %s      %d \n", i, op->mode, op->refCount);
     }
-    printf("=============================\n");
+    printf("=========================\n");
 
     return SUCCESS;
 }
 
 int read_pipe(int fd, char *buf, int n)
 {
-    OFT* op;
-    PIPE* pp;
+    int i;
 
-    op = running->fd[fd];
-    pp = op->pipe_ptr;
+    PIPE* pp = running->fd[fd]->pipe_ptr;
 
-    printf("Before Read:\n");
+    printf("Before P%d read from the pipe: fd=%d\n", running->pid, fd);
     show_pipe(pp);
 
     // (B). READER Process: call  
@@ -65,59 +55,60 @@ int read_pipe(int fd, char *buf, int n)
     //               read as much as it can; either nbytes or until no more data.
     //               return ACTUAL number of bytes read
     //            }.
-    if(pp->nwriter <= 0)
-    {
-
-        return 642;
-    }
-
     //            --------------------------------------------------------------
     //                       (pipe still have WRITERs)
     //       (2). if (pipe has data){
     //               read until nbytes or (3).
     //               "wakeup" WRITERs that are waiting for room
     //            }
-    if(pp->data > 0)
-    {
-
-        return 32;
-    }
-
     //       (3). if (NO data in pipe){
     //               "wakeup" WRITERs that are waiting for room
     //               "wait" for data; 
     //               then try to read again from (1).
     //            }
-
     //      ---------------------------------------------- 
-    //      JJ: dec ref count by one then follow, dec reader by one (remember iput)
-    //      kclose()  ===> close a file descriptor ==> special handling of pipes.
-    //      ===================================================================
-    // Inside the read_pipe()/write_pipe() function, it would be very informative 
-    // if you call showPipe() to display the pipe conditions and contents.
 
-    printf("After Read:\n");
-    show_pipe(pp);
+    i = 0;
+    while(i < n)
+    {
+        // Read data
+        for( ; i < n && pp->data > 0; i++)
+        {
+            pp->tail %= PSIZE;
+            buf[i] = pp->buf[pp->tail++]; // THINK ABOUT 
+            pp->data--;
+            pp->room++;
+        }
+        printf("After P%d read from the pipe: fd=%d\n", running->pid, fd);
+        show_pipe(pp);
 
-    // your code for read_pipe()
-    return 0;
+        // Wake writers that were waiting for room 
+        if(i > 0) kwakeup((int)&pp->room); 
+
+        // Wait for data to be written to the pipe
+        if(pp->data <= 0) kwait(&pp->data);
+    }
+
+    printf("P%d has finished writing to the pipe: fd=%d\n", running->pid, fd);
+    return i;
 }
 
+// Tries to write nbytes of data to the pipe
 int write_pipe(int fd, char *buf, int n)
 {
-    OFT* op = running->fd[fd];
+    int i;
 
-    printf("P%d write_pipe: fd=%d\n", running->pid, fd);
-    // (A). WRITER Proces: call 
-    // 
-    //             n = write(pd[1], buf, nbytes);
-    // 
-    //      which tries to write nbytes of data to the pipe, subject to these 
-    //      constraints.
+    PIPE* pp = running->fd[fd]->pipe_ptr;
+
+    printf("Before P%d writes to the pipe: fd=%d\n", running->pid, fd);
+    show_pipe(pp);
+
     //           ------------------------------------------------------------------
     //      (1). If (no READER on the pipe) return BROKEN_PIPE_ERROR;
     //           ------------------------------------------------------------------
-    //                      (pipe still have READERs):
+    //
+    // (pipe still has READERs):
+    //
     //      (2). If (pipe has room){
     //               write as much as it can until all nbytes are written or (3).
     //               "wakeup" READERs that are waiting for data.  
@@ -128,59 +119,91 @@ int write_pipe(int fd, char *buf, int n)
     //               then try to write again from (1).
     //           }
     //           ------------------------------------------------------------------
-    // Inside the read_pipe()/write_pipe() function, it would be very informative 
-    // if you call showPipe() to display the pipe conditions and contents.
 
+    i = 0;
+    while(i < n)
+    {
+        if(pp->nreader <= 0)
+        {
+            printf("Error write_pipe(fd=%d): No readers - BROKEN PIPE\n", fd);
+            return FAILURE;
+        }
 
-    return 0;
+        // Write data
+        for( ; i < n && pp->room > 0; i++)
+        {
+            pp->head %= PSIZE;
+            pp->buf[pp->head++] = buf[i]; // THINK ABOUT 
+            pp->data++;
+            pp->room--;
+        }
+        printf("After P%d wrote to the pipe:\n", running->pid, fd);
+        show_pipe(pp);
+
+        // Wake readers that were waiting for data
+        if(i > 0) kwakeup((int)&pp->data); 
+
+        // Wait for reader to read and make room in the pipe
+        if(pp->room <= 0) kwait(&pp->room);
+    }
+
+    printf("P%d has finished writing to pipe: fd=%d\n", running->pid, fd);
+    return i;
 }
 
-OFT* get_free_oft()
+int get_free_oft(int start)
 {
     int i;
-    for(i = 0; i < NOFT; i++)
-        if(oft[i].refCount <= 0) return &oft[i];
+    for(i = start; i < NOFT; i++)
+        if(oft[i].refCount <= 0) return i;
 
     printf("No free OFTs!\n");
-    return NULL;
+    return FAILURE;
 }
-
-PIPE* get_free_pipe()
+int get_free_pipe(int start)
 {
     int i;
-    for(i = 0; i < NPIPE; i++)
-        if(!pipe[i].busy) return &pipe[i];
+    for(i = start; i < NPIPE; i++)
+        if(!pipe[i].busy) return i;
 
     printf("No free pipes!\n");
-    return NULL;
+    return FAILURE;
 }
-
-int get_free_fd()
+int get_free_fd(int start)
 {
     int i;
-    for(i = 0; i < NFD; i++)
+    for(i = start; i < NFD; i++)
         if(!running->fd[i]) return i;
 
     printf("No free FDs!\n");
     return FAILURE;
 }
 
-// create a pipe, return 2 file descriptors, e.g.
-// even for READ, odd for WRITE
+// Create a pipe
 int kpipe(int pd[2])
 {
+    int index;
     PIPE* pp;
     OFT* read_op;
     OFT* write_op;
     int read_fd;
     int write_fd;
 
-    // Get a free pipe, 2 free OFTs, and 2 free FDs
-    if(!(pp = get_free_pipe())) return FAILURE;
-    if(!(read_op = get_free_oft())) return FAILURE;
-    if(!(write_op = get_free_oft())) return FAILURE;
-    if((read_fd = get_free_fd()) < 0) return FAILURE;
-    if((write_fd = get_free_fd()) < 0) return FAILURE;
+    // Get a free pipe
+    if((index = get_free_pipe(0)) < 0) return FAILURE;
+    pp = &pipe[index];
+
+    // Get 2 free OFTs
+    if((index = get_free_oft(0)) < 0) return FAILURE;
+    read_op = &oft[index];
+    if((index = get_free_oft(++index)) < 0) return FAILURE;
+    write_op = &oft[index];
+
+    // Get 2 free FDs
+    if((index = get_free_fd(0)) < 0) return FAILURE;
+    read_fd = index; 
+    if((index = get_free_fd(++index)) < 0) return FAILURE;
+    write_fd = index; 
 
     // Initialize Pipe
     pp->room = PSIZE;
@@ -203,7 +226,7 @@ int kpipe(int pd[2])
     write_op->pipe_ptr = pp;
     running->fd[write_fd] = write_op;
 
-    // Fill pd[0] pd[1] in User Mode with FDs 
+    // Fill pd[0] and pd[1] in User Mode with FDs 
     put_word(read_fd, running->uss, (u16)&pd[0]);
     put_word(write_fd, running->uss, (u16)&pd[1]);
 
@@ -212,18 +235,16 @@ int kpipe(int pd[2])
 
 int close_pipe(int fd)
 {
-    OFT *op; 
-    PIPE *pp;
+    OFT* op = running->fd[fd];
+    PIPE* pp = op->pipe_ptr;
 
     printf("P%d close_pipe: fd=%d\n", running->pid, fd);
 
-    op = running->fd[fd];
-    pp = op->pipe_ptr;
     running->fd[fd] = 0;             // clear fd[fd] entry 
 
     if(op->mode == READ_PIPE)
     {
-        pp->nreader--;               // dec n reader by 1
+        pp->nreader--;               // decrement # of readers 
 
         if(--op->refCount == 0)
         { // last reader
@@ -234,13 +255,13 @@ int close_pipe(int fd)
             }
         }
 
-        kwakeup((int)&pp->room);          // wakeup any WRITER on pipe 
+        kwakeup((int)&pp->room);          // wakeup any Writer on the pipe 
         return SUCCESS; 
     }
 
     if(op->mode == WRITE_PIPE)
     {
-        pp->nwriter--;               // dec n reader by 1
+        pp->nwriter--;               // decrement # of writers
 
         if(--op->refCount == 0)
         { // last writer 
@@ -251,11 +272,12 @@ int close_pipe(int fd)
             }
         }
 
-        kwakeup((int)&pp->room);          // wakeup any READER on pipe 
+        kwakeup((int)&pp->data);          // wakeup any READER on pipe 
         return SUCCESS; 
     }
 
-    return SUCCESS;
+    printf("Unable to close pipe connected to fd[%d] because of unknown mode\n", fd);
+    return FAILURE;
 }
 
 // -------------------------------------------------------------------------------
@@ -336,4 +358,3 @@ int close_pipe(int fd)
 // -------------------------------------------------------------------------------
 // 
 // (5). write()/read()  fd of PIPE are governed by 4(a) and 4(b).
-// 

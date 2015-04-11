@@ -16,7 +16,7 @@ void ksleep(int event)
 }
 
 // wakeup ALL PROCs sleeping on event
-void kwakeup(int event)
+void kwakeup(int event) // consider making this int* to pair with wait better
 {
     bool flag = false;
     PROC* p;

@@ -35,6 +35,7 @@
 #define SYSCALL_PUTC       91
 
 extern char *cmd[];
+extern int pd[2]; // Might need to go in Ux.c
 
 // u.s
 int getcs();
@@ -57,6 +58,13 @@ int _getc();
 int _putc(char c);
 int fork();
 int exec();
+
+// Pipe syscalls
+int pipe();
+int read();
+int write();
+int close();
+int pfd();
 
 int invalid(char *name);
 

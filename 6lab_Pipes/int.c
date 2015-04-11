@@ -37,7 +37,7 @@ int kcinth()
         case  7 : result = fork();                     break;
         case  8 : result = exec((char*)b);             break;
 
-                  // Pipe Functions
+        // Pipe Functions
         case 30 : result = kpipe((int*)b);             break;
         case 31 : result = read_pipe(b, (char*)c, d);  break;
         case 32 : result = write_pipe(b, (char*)c, d); break;

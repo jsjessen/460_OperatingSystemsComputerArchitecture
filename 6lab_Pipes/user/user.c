@@ -43,6 +43,53 @@ int find_cmd(char *name)
     return FAILURE;
 }
 
+int pd[2];
+int pipe()
+{
+    return syscall(SYSCALL_PIPE, pd);
+}
+
+int pfd()
+{
+    return syscall(SYSCALL_PFD);
+}
+
+int close()
+{
+    int fd;
+
+    printf("Enter FD to close: ");
+    fd = geti();
+
+    return syscall(SYSCALL_CLOSE_PIPE, fd);
+}
+
+int read()
+{
+    int fd, nbytes;
+    char buf[1024];
+
+    printf("Enter FD to read: ");
+    fd = geti();
+    printf("Enter number of bytes to read: ");
+    nbytes = geti();
+
+    return syscall(SYSCALL_READ_PIPE, fd, buf, nbytes);
+}
+
+int write()
+{
+    int fd, nbytes;
+    char buf[1024];
+
+    printf("Enter FD to read: ");
+    fd = geti();
+    printf("Enter number of bytes to read: ");
+    nbytes = geti();
+
+    return syscall(SYSCALL_WRITE_PIPE, fd, buf, nbytes);
+}
+
 int getpid()
 {
     return syscall(SYSCALL_GET_PID,0,0);
