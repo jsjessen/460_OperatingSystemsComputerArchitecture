@@ -184,7 +184,7 @@ $(LIB_OBJ_DIR)/setds.o: $(LIB_DIR)/setds.s type.h
 $(LIB_OBJ_DIR)/math.o: $(LIB_DIR)/math.c type.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/string.o: $(LIB_DIR)/string.c type.h
+$(LIB_OBJ_DIR)/string.o: $(LIB_DIR)/string.c $(LIB_DIR)/math.h type.h 
 	$(CC) $(CFLAGS) $< -o $@
 
 $(LIB_OBJ_DIR)/io.o: $(LIB_DIR)/io.c type.h

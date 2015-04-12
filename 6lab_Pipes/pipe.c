@@ -3,15 +3,17 @@
 void show_pipe(PIPE* pp)
 {
     char buf[PSIZE + 1];
-    strcpy(buf, pp->buf + pp->tail);
-    //strncat(buf, pp->buf, pp->tail - pp->buf);
+
+    strcpy(buf, pp->buf);
     buf[PSIZE] = '\0';
 
-    printf("------------ PIPE CONTENTS ------------\n");     
-    printf("Data = %d                  Room = %d   \n", pp->data, pp->room);
-    printf("#readers = %d             #writers = %d\n", pp->nreader, pp->nwriter);
-    printf("Contents = \"%s\"                      \n", buf);
-    printf("---------------------------------------\n");
+    printf("------------------ PIPE ------------------\n");
+    printf("    Data = %d               Room = %d     \n", pp->data, pp->room);
+    printf("    #readers = %d           #writers = %d\n", pp->nreader, pp->nwriter);
+    printf("    Head = %d               Tail = %d     \n", pp->head, pp->tail);
+    printf("------------------------------------------\n");
+    printf(" |%s|\n", buf);
+    printf("==========================================\n");
 }
 
 int pfd()
@@ -44,35 +46,53 @@ int read_pipe(int fd, char *buf, int n)
     int i = 0;
     PIPE* pp = running->fd[fd]->pipe_ptr;
 
-    show_pipe(pp);
-    printf("P%d reading from the pipe: fd=%d\n", running->pid, fd);
-
     // While the # bytes read is less than the # bytes requested
     while(i < n)
     {
+        int snapshot = i;
+
         // If the pipe is empty, wait for the writer to add data
-        if(pp->data <= 0) ksleep((int)&pp->data);
+        if(pp->data <= 0)
+        {
+            printf("The pipe is empty => P%d waits for data (fd=%d)\n", 
+                    running->pid, fd);
+            ksleep((int)&pp->data);
+        }
         // There must be data in the pipe now
+
+        show_pipe(pp);
+        printf("P%d tries to read %d bytes from the pipe (fd=%d)\n", 
+                running->pid, n - i, fd);
+        getc();
 
         // Put data from the pipe into the supplied buffer
         for(; i < n && pp->data > 0; i++)
         {
             pp->tail %= PSIZE;
             put_byte(pp->buf[pp->tail++], running->uss, (u16)&buf[i]);
-            pp->buf[pp->tail - 1] = '\0';
             pp->data--;
             pp->room++;
+
+            // Make read space with visual indication for show_pipe()
+            pp->buf[pp->tail - 1] = '-'; 
         }
         // There is probably room in the pipe now
 
         // If there is room in the pipe, wakeup writers waiting for room 
-        if(pp->room > 0) kwakeup((int)&pp->room); 
-        show_pipe(pp);
-        getc();
+        if(pp->room > 0)
+        {
+            show_pipe(pp);
+            printf("P%d read %d bytes from the pipe => Wakes writers (fd=%d)\n", 
+                    running->pid, i - snapshot, fd);
+            kwakeup((int)&pp->room); 
+        }
+        else
+            printf("P%d failed to read data from the pipe (fd=%d)\n", 
+                    running->pid, fd);
     }
+    printf("P%d completes read job: %d/%d bytes (fd=%d)\n", 
+            running->pid, i, n, fd);
 
-    //show_pipe(pp);
-    printf("P%d has finished reading from the pipe: fd=%d\n", running->pid, fd);
     return i;
 }
 
@@ -82,25 +102,33 @@ int write_pipe(int fd, char *buf, int n)
     int i = 0;
     PIPE* pp = running->fd[fd]->pipe_ptr;
 
-    show_pipe(pp);
-    printf("P%d attempting to write %d bytes to the pipe: fd=%d\n", 
-            running->pid, n, fd);
-
     // While the # bytes written is less than the # bytes requested
     while(i < n)
     {
+        int snapshot = i;
+
         // If there are no readers to read data from the pipe,
         // don't bother writing data to it
         if(pp->nreader <= 0)
         {
-            printf("Error: Broken Pipe, fd=%d\n", fd);
+            printf("Error: Broken Pipe (fd=%d)\n", fd);
             return FAILURE;
         }
         // There must be at least one reader
 
         // If the pipe is full, wait for the reader to make room
-        if(pp->room <= 0) ksleep((int)&pp->room);
+        if(pp->room <= 0) 
+        {
+            printf("The pipe is full => P%d waits for room (fd=%d)\n", 
+                    running->pid, fd);
+            ksleep((int)&pp->room);
+        }
         // There must be room in the pipe now
+
+        show_pipe(pp);
+        printf("P%d tries to write %d bytes to the pipe (fd=%d)\n", 
+                running->pid, n - i, fd);
+        getc();
 
         // Get data from the supplied buffer and write it to the pipe
         for(; i < n && pp->room > 0; i++)
@@ -113,13 +141,20 @@ int write_pipe(int fd, char *buf, int n)
         // There is probably data in the pipe now
 
         // If there is data in the pipe, wakeup readers waiting for data 
-        if(pp->data > 0) kwakeup((int)&pp->data); 
-        show_pipe(pp);
-        getc();
+        if(pp->data > 0)
+        {
+            show_pipe(pp);
+            printf("P%d wrote %d bytes to the pipe => Wakes readers (fd=%d)\n", 
+                    running->pid, i - snapshot, fd);
+            kwakeup((int)&pp->data); 
+        }
+        else
+            printf("P%d failed to write data to the pipe (fd=%d)\n", 
+                    running->pid, fd);
     }
+    printf("P%d completes write job: %d/%d bytes (fd=%d)\n", 
+            running->pid, i, n, fd);
 
-    //show_pipe(pp);
-    printf("P%d has finished writing %d bytes to the pipe: fd=%d\n", running->pid, i, fd);
     return i;
 }
 
@@ -154,6 +189,7 @@ int get_free_fd(int start)
 // Create a pipe
 int kpipe(int pd[2])
 {
+    int i;
     int index;
     PIPE* pp;
     OFT* read_op;
@@ -185,6 +221,7 @@ int kpipe(int pd[2])
     pp->nreader = 1;
     pp->nwriter = 1;
     pp->busy = true;
+    for(i = 0; i < PSIZE; i++) pp->buf[i] = '-';
 
     // Initialize Reader
     read_op->mode = READ_PIPE;
@@ -256,82 +293,3 @@ int close_pipe(int fd)
     pfd();
     return FAILURE;
 }
-
-// -------------------------------------------------------------------------------
-// 
-// (2). P1 does pid = fork(); creates P2 and COPY P1' fd's ==> inc OFT's refCount
-//      to 2 and nreaders, nwriters to 2 also: 
-// 
-// 
-// PROC[1]                                              PROC[2]
-// ======                                              ========
-// 
-// 
-// fd[0] --->  OFT      <------------------------------ fd[0]
-//           ==========
-//           R_PIPE
-//           refCount=1 (2)
-//            Ptr -------->      PIPE
-//           ==========   -> ===============
-//                        |  char buf[PSIZE]
-//                        |    head=tail=0
-//                        |    nreader = 1 (2)
-//                        |    nwriter = 1 (2)
-//                        |  ===============
-//                        |
-// fd[1] -->    OFT   <------------------------------  fd[1]
-//            ========    |
-//             W_PIPE     |
-//          refCount=1(2) |
-//              Ptr -------
-// ======     ========                                 =======   
-// 
-// -------------------------------------------------------------------------------
-// 
-// (3). Let parent P1 be WRITER        |        child P2 be READER
-//      P1: close(pd[0]);              |        P2: close(pd[1]);
-// 
-// 
-// 
-// PROC[1]                                              PROC[2]
-// ======                                              ========
-// 
-// 
-// fd[0]=0      OFT      <------------------------------ fd[0]
-//           ==========
-//           R_PIPE
-//           refCount=1 (1)
-//            Ptr -------->      PIPE
-//           ==========   -> ===============
-//                        |  char buf[PSIZE]
-//                        |    head=tail=0
-//                        |    nreader = 1 (1)
-//                        |    nwriter = 1 (1)
-//                        |  ===============
-//                        |
-// fd[1] -->    OFT                                     fd[1]=0
-//            ========    |
-//             W_PIPE     |
-//          refCount=1(1) |
-//              Ptr -------
-// ======     ========                                 =======   
-// 
-// -------------------------------------------------------------------------------
-// 
-// (3). P1 can only WRITE to pipe by pd[1];   P2 can only READ from pipie by pd[0]
-// 
-//                      P1                    P2
-//                 WRITE pd[1] --> PIPE --> READ pd[0]
-// 
-// 
-//      OR          P1 -->WRITE--> PIPE --> READ --> P2
-// 
-//      OR                       P1  |  P2
-// 
-// -------------------------------------------------------------------------------
-// (4). P1 writes to PIPE;           |           P2 reads from PIPE
-//                                   |
-//   n = write(pd[1], wbuf, nbytes); |       n = read(pd[0], rbuf, nbytes);    
-// -------------------------------------------------------------------------------
-// 
-// (5). write()/read()  fd of PIPE are governed by 4(a) and 4(b).

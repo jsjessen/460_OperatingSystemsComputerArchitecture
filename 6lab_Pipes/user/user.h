@@ -34,6 +34,7 @@
 #define SYSCALL_GETC       90
 #define SYSCALL_PUTC       91
 
+extern int color;
 extern char *cmd[];
 extern int pd[2]; // Might need to go in Ux.c
 
@@ -48,7 +49,7 @@ int find_cmd(char *name);
 int getpid();
 int ps();
 int chname();
-int kfork();
+int kmode();
 int kswitch();
 int wait();
 int geti_(); // lib or this?

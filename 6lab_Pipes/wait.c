@@ -18,13 +18,13 @@ void ksleep(int event) // consider making this int* to pair with wait better
 // wakeup ALL PROCs sleeping on event
 void kwakeup(int event) 
 {
-    bool flag = false;
+    //bool flag = false;
     PROC* p;
 
     while((p = event_dequeue(&sleepList, event)))
     {
-        if(!flag)
-            printf("\n");
+        //if(!flag)
+        //    printf("\n");
 
         color = 0x000A + (p->pid % 6);
         printf("P%d wakes up\n", p->pid);
@@ -32,7 +32,7 @@ void kwakeup(int event)
         p->status = READY;
         enqueue(&readyQueue, p);
 
-        flag = true;
+        //flag = true;
     }
         color = 0x000A + (running->pid % 6);
 }

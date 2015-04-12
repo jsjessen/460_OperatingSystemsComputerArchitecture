@@ -12,11 +12,7 @@ int strlen(char* str)
 
 int strcmp(char* str1, char* str2)
 {
-    while(*str1 == *str2 && *str1 != '\0' && *str2 != '\0')
-    {
-        str1++;
-        str2++;
-    }
+    while(*str1 != '\0' && *str2 != '\0' && *(str1++) == *(str2++));
 
     if(*str1 < *str2)
         return -1;
@@ -28,11 +24,7 @@ int strcmp(char* str1, char* str2)
 
 int strncmp(char* str1, char* str2, int n)
 {
-    while(*str1 == *str2 && *str1 != '\0' && *str2 != '\0' && n-- > 0)
-    {
-        str1++;
-        str2++;
-    }
+    while(n-- > 0 && *str1 != '\0' && *str2 != '\0' && *(str1++) == *(str2++));
 
     if(*str1 < *str2)
         return -1;
@@ -60,6 +52,7 @@ char* strncpy(char* dest, char* source, int n)
     return dest;
 }
 
+// Append source to the end of dest
 char* strcat(char* dest, char* source)
 {
     char* cp = dest;

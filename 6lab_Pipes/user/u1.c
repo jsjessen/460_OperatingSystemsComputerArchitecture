@@ -1,6 +1,5 @@
 #include "user.h"
 
-int color;
 int main()//int argc, char* argv[])
 { 
     int count = 0;
@@ -32,7 +31,7 @@ int main()//int argc, char* argv[])
             case  0 : getpid();     break;
             case  1 : ps();         break;
             case  2 : chname();     break;
-            case  3 : fork();       break;
+            case  3 : kmode();      break;
             case  4 : kswitch();    break;
             case  5 : wait();       break;
             case  6 : exit();       break;

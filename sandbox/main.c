@@ -1,48 +1,46 @@
-#include "stdio.h"
-#include "stdlib.h"
-#include "fcntl.h"
-
-//********************** Unix Pipe Example ***************************
-// 1. Run this program under Linux.
-// 2. See what happens if you let
-//        the child  process (pipe reader) die first.
-//        the parent process (pipe writer) die first.
-//********************************************************************
-int  pd[2], n, pid;
-char line[256], *s="data from pipe";
+#include "lib/io.h"
+#include "lib/string.h"
 
 int main()
 {
-    pid = getpid();
-    printf("parent=%d\n", pid);
+    char sh[64] = "James";
+    char sj[64];
+    char a[16] = "test";
+    char b[16] = "kfork";
+    char s[16];
+    char* sp;
+    char x[6] = "32767";
+    char y[6] = "32768";
 
-    pipe(pd);
 
-    if (fork())
-    { // PARENT: WRITER
-        printf("parent %d close pd[0]\n", pid);
-        close(pd[0]);
+    printf("---------------\n");
+    strcpy(sj, sh);
 
-        while(1)
-        {
-            sleep(2); // delay 2 sec before writing, 
-            // read is also delayed because pipe is empty
-            printf("parent %d writing pipe : %s\n", pid, s);
-            write(pd[1], s, strlen(s));
-        }
-    }
+    printf("\"%s\"\n", sj);
+
+    printf("---------------\n");
+    if(strcmp(b,a) == 0)
+        printf("%s == %s\n", a, b);
     else
-    { // CHILD: READER
-        pid = getpid();
-        printf("child  %d close pd[1]\n", pid);
-        close(pd[1]);
+        printf("%s != %s\n", a, b);
+    printf("---------------\n");
 
-        while(1)
-        {
-            printf("child  %d reading pipe : ", pid);
-            n = read(pd[0], line, 256); // if n = 0, should stop reading
-            line[n]=0;
-            printf("%s\n", line);
-        }
-    }
+
+    printf("len a = %d\n", strlen(a));
+    printf("len b = %d\n", strlen(b));
+    printf("---------------\n");
+    
+    //sp = gets(s);
+    //printf("s = \"%s\"\n", s);
+    //printf("sp = \"%s\"\n", sp);
+    printf("---------------\n");
+    strncat(a, b, 2);
+    printf("cat = \"%s\"\n", a);
+    printf("---------------\n");
+    printf("x = %d should be %s\n", atoi(x), x);
+    printf("y = %d should be %s\n", atoi(y), y);
+    //printf("z = %d should be %s\n", atoi(z), z);
+    printf("---------------\n");
+
+    return 0;
 }

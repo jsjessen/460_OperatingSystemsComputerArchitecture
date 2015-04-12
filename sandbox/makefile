@@ -1,3 +1,3 @@
 run:
-	gcc main.c myprint.c
+	gcc main.c
 	a.out

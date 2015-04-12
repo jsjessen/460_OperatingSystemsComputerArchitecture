@@ -4,10 +4,10 @@
 #ifndef __STRING_H__
 #define __STRING_H__
 
-#include "io.h"
+
 #include "math.h"
 
-//int strlen(char* str);
+int strlen(char* str);
 
 int strcmp(char* str1, char* str2);
 int strncmp(char* str1, char* str2, int n);

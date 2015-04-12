@@ -1,22 +1,26 @@
 #include "user.h"
 
+int color;
+
 char *cmd[]=
 {
     "getpid", 
     "ps", 
     "chname", 
-    "kfork", 
+    "kmode", 
     "switch", 
     "wait", 
     "exit", 
     "fork", 
     "exec", 
+
     "pipe",
     "pfd",
     "close",
     "read",
     "write",
     "test",
+
     0
 };
 
@@ -24,7 +28,7 @@ int show_menu()
 {
     printf("********************** Menu ************************\n");
     printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
-    printf("*  pipe   pfd    close  read  write   test         *\n");
+    printf("*      pipe   pfd    close  read  write   test     *\n");
     printf("****************************************************\n");
     return SUCCESS;
 }
@@ -36,12 +40,18 @@ int find_cmd(char *name)
 
     while(p)
     {
-        if (strcmp(p, name) == 0)
+        if(strcmp(p, name) == 0)
             return i;
+
         i++; 
         p = cmd[i];
     } 
     return FAILURE;
+}
+
+int kmode()
+{
+    return 0;
 }
 
 int test_pipe()
@@ -59,16 +69,14 @@ int test_pipe()
 
     if(pid)
     { // Parent - Pipe Writer
-        //char* buf = "0123456789A0123456789B0123456789C0123456789D0123456789";
         char* buf = "The quick brown fox jumped over the lazy dog!";
+        //char* buf = "0123456789A0123456789B0123456789C0123456789D0123456789";
+        
         syscall(SYSCALL_CLOSE_PIPE, pd[0]); // close PipeIn
-        _getc();
         kswitch();
 
         n = syscall(SYSCALL_WRITE_PIPE, pd[1], buf, 45);
-        printf("Parent P%d wrote %d bytes to the pipe\n", getpid(), n);
         buf[n] = '\0';
-        printf("Wrote = \"%s\"\n", buf);
         _getc();
 
         kswitch();
@@ -78,14 +86,13 @@ int test_pipe()
     { // Child - Pipe Reader
         char buf[256];
         syscall(SYSCALL_CLOSE_PIPE, pd[1]); // close PipeOut
-        _getc();
         kswitch();
         _getc();
 
         n = syscall(SYSCALL_READ_PIPE, pd[0], buf, 45);
-        printf("Child P%d read %d bytes from the pipe\n", getpid(), n);
-        printf("Read = \"%s\"\n", buf);
-        _getc();
+
+        color = 0x000A + (getpid() % 6); 
+        printf("\n(Umode) P%d read = \"%s\"\n", getpid(), buf);
 
         return n;
     }
@@ -161,16 +168,6 @@ int chname()
     gets(s);
     return syscall(SYSCALL_CHNAME, s, 0);
 }
-
-// int kfork()
-// {   
-//   int child, pid;
-//   pid = getpid();
-//   printf("proc %d enter kernel to kfork a child\n", pid); 
-//   child = syscall(SYSCALL_FORK, 0, 0);
-//   printf("proc %d kforked a child %d\n", pid, child);
-//   return child;
-// }    
 
 int kswitch()
 {
