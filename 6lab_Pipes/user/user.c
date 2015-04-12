@@ -19,7 +19,7 @@ char *cmd[]=
     "close",
     "read",
     "write",
-    "test",
+    "test_pipe",
 
     0
 };
@@ -28,7 +28,7 @@ int show_menu()
 {
     printf("********************** Menu ************************\n");
     printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
-    printf("*      pipe   pfd    close  read  write   test     *\n");
+    printf("*  pipe   pfd    close   read   write   test_pipe  *\n");
     printf("****************************************************\n");
     return SUCCESS;
 }
@@ -79,6 +79,8 @@ int test_pipe()
         buf[n] = '\0';
         _getc();
 
+        syscall(SYSCALL_CLOSE_PIPE, pd[1]); // close Pipe
+
         kswitch();
         return n;
     }
@@ -94,14 +96,18 @@ int test_pipe()
         color = 0x000A + (getpid() % 6); 
         printf("\n(Umode) P%d read = \"%s\"\n", getpid(), buf);
 
+        syscall(SYSCALL_CLOSE_PIPE, pd[0]); // close Pipe
+
         return n;
     }
+
+    pfd();
 }
 
 int pipe()
 {
-    int other_pd[2];
-    return syscall(SYSCALL_PIPE, other_pd);
+    int pd[2];
+    return syscall(SYSCALL_PIPE, pd);
 }
 
 int pfd()
@@ -128,7 +134,7 @@ int read()
     pfd();
     printf("Read from FD: ");
     fd = geti();
-    printf("\nEnter number of bytes to read: ");
+    printf("\nNumber of bytes to read: ");
     nbytes = geti();
     printf("\n");
 
@@ -194,19 +200,8 @@ int geti_()
 
 int exit()
 {
-    int exitValue;
-    printf("enter an exitValue: ");
-    exitValue = geti();
-    printf("exitvalue=%d\n", exitValue);
-    printf("enter kernel to die with exitValue=%d\n", exitValue);
-    return _exit(exitValue);
+    return syscall(SYSCALL_EXIT);
 }
-
-int _exit(int exitValue)
-{
-    return syscall(SYSCALL_EXIT,exitValue,0);
-}
-
 
 int _getc()
 {

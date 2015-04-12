@@ -126,7 +126,7 @@ int kexit(u16 exitValue)
 
     running->exitValue = exitValue;
     running->status = ZOMBIE;
-    printf("\nP%d stopped: Exit Value = %d", running->pid, exitValue);
+    printf("\nP%d stopped: Exit Value = %d\n", running->pid, exitValue);
 
     // If parent is sleeping, wake parent 
     if(running->parent->status == SLEEPING)

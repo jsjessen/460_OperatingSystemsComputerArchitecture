@@ -6,22 +6,25 @@
 // Assumes memory for str has been allocated
 char* gets(char str[])
 {
-    while((*(str) = getc()) != '\r')
+    char* cp = str;
+    
+    while((*(cp) = getc()) != '\r')
     {
         // So backspace behaves as expected
-        if(*str == '\b')
+        if(*cp == '\b' && cp > str)
         {
-            putc('\b');
-            putc(' ');
-            putc('\b');
-            *(--str) = '\0';
+            putc('\b'); // Move cursor back 1 char 
+            putc(' ');  // Overwrite char with space, moving forward 1 char 
+            putc('\b'); // Move cursor back 1 char 
+            *(--cp) = '\0';
             continue;
         }
-        putc(*str++); // So user can see what they're typing
+        else if(*cp != '\b')
+            putc(*cp++); // So user can see what they're typing
     }
+    *cp = '\0'; // Append with null char
 
-    *str = '\0'; // Append with null char
-    return str;
+    return cp;
 }
 
 u16 geti()

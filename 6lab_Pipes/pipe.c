@@ -44,7 +44,16 @@ int pfd()
 int read_pipe(int fd, char *buf, int n)
 {
     int i = 0;
-    PIPE* pp = running->fd[fd]->pipe_ptr;
+
+    OFT* op = running->fd[fd];
+    PIPE* pp = op->pipe_ptr;
+
+    if(!op || op->refCount <= 0 || op->mode != READ_PIPE)
+    {
+        printf("Read pipe failed: FD %d is not open for pipe reading\n", fd);
+        pfd();
+        return FAILURE;
+    }
 
     // While the # bytes read is less than the # bytes requested
     while(i < n)
@@ -100,7 +109,16 @@ int read_pipe(int fd, char *buf, int n)
 int write_pipe(int fd, char *buf, int n)
 {
     int i = 0;
-    PIPE* pp = running->fd[fd]->pipe_ptr;
+
+    OFT* op = running->fd[fd];
+    PIPE* pp = op->pipe_ptr;
+
+    if(!op || op->refCount <= 0 || op->mode != WRITE_PIPE)
+    {
+        printf("Write pipe failed: FD %d is not open for pipe writing\n", fd);
+        pfd();
+        return FAILURE;
+    }
 
     // While the # bytes written is less than the # bytes requested
     while(i < n)

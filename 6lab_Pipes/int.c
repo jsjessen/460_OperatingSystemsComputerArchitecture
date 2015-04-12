@@ -33,9 +33,8 @@ int kcinth()
         case  3 : result = kmode();                    break;
         case  4 : result = tswitch();                  break;
         case  5 : result = do_wait((int*)b);           break;
-        case  6 : result = do_exit(b);                 break;
-        case  7 : result = fork();                     break;
-        case  8 : result = exec((char*)b);             break;
+        case  6 : result = fork();                     break;
+        case  7 : result = exec((char*)b);             break;
 
         // Pipe Functions
         case 30 : result = kpipe((int*)b);             break;

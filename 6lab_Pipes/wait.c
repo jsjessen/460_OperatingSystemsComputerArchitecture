@@ -78,7 +78,7 @@ int kwait(int* status)
                 p->status = FREE;
                 p->priority = 0;
                 p->event = 0;
-                p->name[0] = '\0';
+                //p->name[0] = '\0';
                 p->exitValue = 0;
 
                 // return it to the free list

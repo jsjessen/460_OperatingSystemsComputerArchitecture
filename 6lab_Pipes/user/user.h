@@ -12,6 +12,7 @@
 
 #include "../type.h"
 #include "../lib/io.h"
+#include "../lib/string.h"
 
 #define LEN 64
 
@@ -21,9 +22,8 @@
 #define SYSCALL_KMODE      3
 #define SYSCALL_TSWITCH    4
 #define SYSCALL_WAIT       5
-#define SYSCALL_EXIT       6
-#define SYSCALL_FORK       7
-#define SYSCALL_EXEC       8
+#define SYSCALL_FORK       6
+#define SYSCALL_EXEC       7
 
 #define SYSCALL_PIPE       30
 #define SYSCALL_READ_PIPE  31
@@ -33,6 +33,8 @@
 
 #define SYSCALL_GETC       90
 #define SYSCALL_PUTC       91
+
+#define SYSCALL_EXIT       99
 
 extern int color;
 extern char *cmd[];
@@ -54,7 +56,6 @@ int kswitch();
 int wait();
 int geti_(); // lib or this?
 int exit();
-int _exit(int exitValue);
 int _getc();
 int _putc(char c);
 int fork();
