@@ -1,26 +1,26 @@
 #include "string.h"
 
-//int strlen(char* str)
-//{
-//    int len = 0;
-//
-//    while(*(str++) != '\0')
-//        len++;
-//
-//    return len;
-//}
-
-int strcmp(char* str1, char* str2)
+int strlen(char* str)
 {
-    while(*str1 != '\0' && *str2 != '\0' && *(str1++) == *(str2++));
-        
-    if(*str1 < *str2)
-        return -1;
-    if(*str1 == *str2)
-        return 0;
-    if(*str1 > *str2)
-        return 1;
+    int len = 0;
+
+    while(*(str++) != '\0')
+        len++;
+
+    return len;
 }
+
+// int strcmp(char* str1, char* str2)
+// {
+//     while(*str1 != '\0' && *str2 != '\0' && *(str1++) == *(str2++));
+//         
+//     if(*str1 < *str2)
+//         return -1;
+//     if(*str1 == *str2)
+//         return 0;
+//     if(*str1 > *str2)
+//         return 1;
+// }
 
 int strncmp(char* str1, char* str2, int n)
 {

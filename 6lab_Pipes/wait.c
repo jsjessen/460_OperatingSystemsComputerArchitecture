@@ -1,7 +1,7 @@
 #include "kernel.h"
 
 // running PROC to sleep on an event value
-void ksleep(int event)
+void ksleep(int event) // consider making this int* to pair with wait better
 {
     running->event = event;  // Record event in PROC
 
@@ -16,7 +16,7 @@ void ksleep(int event)
 }
 
 // wakeup ALL PROCs sleeping on event
-void kwakeup(int event) // consider making this int* to pair with wait better
+void kwakeup(int event) 
 {
     bool flag = false;
     PROC* p;
@@ -27,7 +27,7 @@ void kwakeup(int event) // consider making this int* to pair with wait better
             printf("\n");
 
         color = 0x000A + (p->pid % 6);
-        printf("\nP%d wakes up", p->pid);
+        printf("P%d wakes up\n", p->pid);
 
         p->status = READY;
         enqueue(&readyQueue, p);

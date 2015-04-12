@@ -6,9 +6,9 @@
 
 #include "math.h"
 
-//int strlen(char* str);
+int strlen(char* str);
 
-int strcmp(char* str1, char* str2);
+//int strcmp(char* str1, char* str2);
 int strncmp(char* str1, char* str2, int n);
 
 char* strcpy(char* dest, char* source);

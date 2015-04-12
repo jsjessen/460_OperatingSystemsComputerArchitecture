@@ -1,8 +1,6 @@
 #include "kernel.h"
 #include "string.h"
 
-char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
-
 // p : print pid, ppid and status of ALL PROCs
 int do_ps()
 {

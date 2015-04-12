@@ -20,9 +20,6 @@
 #define NOFT  20       // Number of Open File Tables
 #define NPIPE 10       // Number of Pipes
 
-#define READ_PIPE  4
-#define WRITE_PIPE 5
-
 #define NUM_KREG  9    // Number of Kernel-mode Registers
 #define NUM_UREG 12    // Number of User-mode Registers
 
@@ -58,7 +55,11 @@
 #define UCS_FROM_USP   (10 * REG_SIZE)  // Code Segment
 #define UFLAG_FROM_USP (11 * REG_SIZE)  // Flag
 
-typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } status_t;
+typedef enum { FREE, READY, RUNNING, STOPPED, SLEEPING, ZOMBIE } proc_status_t;
+char* states[] = { "free    ", "ready   ", "running ", "stopped ", "sleeping", "zombie  " };
+
+typedef enum { READ_PIPE, WRITE_PIPE } oft_mode_t; 
+char* modes[] = { "READ_PIPE ", "WRITE_PIPE" };
 
 extern PROC proc[], *running, *freeList, *sleepList, *readyQueue;
 extern char* states[];

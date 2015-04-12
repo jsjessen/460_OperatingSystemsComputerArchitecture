@@ -65,6 +65,7 @@ int read();
 int write();
 int close();
 int pfd();
+int test_pipe();
 
 int invalid(char *name);
 

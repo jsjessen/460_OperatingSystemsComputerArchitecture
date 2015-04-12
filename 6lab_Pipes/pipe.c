@@ -1,14 +1,16 @@
 #include "kernel.h"
-//#include "fcntl.h" // Open()
 
-char *MODE[] = { "READ_PIPE ", "WRITE_PIPE" };
-
-void show_pipe(PIPE *p)
+void show_pipe(PIPE* pp)
 {
+    char buf[PSIZE + 1];
+    strcpy(buf, pp->buf + pp->tail);
+    //strncat(buf, pp->buf, pp->tail - pp->buf);
+    buf[PSIZE] = '\0';
+
     printf("------------ PIPE CONTENTS ------------\n");     
-    printf("Data = %d                  Room = %d   \n", p->data, p->room);
-    printf("#readers = %d             #writers = %d\n", p->nreader, p->nwriter);
-    printf("Contents = \"%s\"                    \n\n", p->buf);
+    printf("Data = %d                  Room = %d   \n", pp->data, pp->room);
+    printf("#readers = %d             #writers = %d\n", pp->nreader, pp->nwriter);
+    printf("Contents = \"%s\"                      \n", buf);
     printf("---------------------------------------\n");
 }
 
@@ -23,131 +25,101 @@ int pfd()
         return SUCCESS;
     }
 
-    printf("=========================\n");
-    printf("   FD     Mode     Ref       \n");
-    printf("  ----   ------   -----      \n");
+    printf("============================= \n");
+    printf("   FD       Mode       Ref    \n");
+    printf("  ----   ----------   -----   \n");
     for(i = 0; i < NFD; i++)
     {
         if((op = running->fd[i]) != NULL)
-            printf("   %d      %s      %d \n", i, op->mode, op->refCount);
+            printf("   %d     %s     %d \n", i, modes[op->mode], op->refCount);
     }
-    printf("=========================\n");
+    printf("============================= \n");
 
     return SUCCESS;
 }
 
+// Tries to read n bytes of data from the pipe
 int read_pipe(int fd, char *buf, int n)
 {
-    int i;
-
+    int i = 0;
     PIPE* pp = running->fd[fd]->pipe_ptr;
 
-    printf("Before P%d read from the pipe: fd=%d\n", running->pid, fd);
     show_pipe(pp);
+    printf("P%d reading from the pipe: fd=%d\n", running->pid, fd);
 
-    // (B). READER Process: call  
-    //       
-    //              n = read(pd[0], buf, nbytes);
-    // 
-    //       which tries to read nbytes from the pipe, subject to these constraints:
-    //       ---------------------------------------------------------------------
-    //       (1). If (no WRITER on the pipe){
-    //               read as much as it can; either nbytes or until no more data.
-    //               return ACTUAL number of bytes read
-    //            }.
-    //            --------------------------------------------------------------
-    //                       (pipe still have WRITERs)
-    //       (2). if (pipe has data){
-    //               read until nbytes or (3).
-    //               "wakeup" WRITERs that are waiting for room
-    //            }
-    //       (3). if (NO data in pipe){
-    //               "wakeup" WRITERs that are waiting for room
-    //               "wait" for data; 
-    //               then try to read again from (1).
-    //            }
-    //      ---------------------------------------------- 
-
-    i = 0;
+    // While the # bytes read is less than the # bytes requested
     while(i < n)
     {
-        // Read data
-        for( ; i < n && pp->data > 0; i++)
+        // If the pipe is empty, wait for the writer to add data
+        if(pp->data <= 0) ksleep((int)&pp->data);
+        // There must be data in the pipe now
+
+        // Put data from the pipe into the supplied buffer
+        for(; i < n && pp->data > 0; i++)
         {
             pp->tail %= PSIZE;
-            buf[i] = pp->buf[pp->tail++]; // THINK ABOUT 
+            put_byte(pp->buf[pp->tail++], running->uss, (u16)&buf[i]);
+            pp->buf[pp->tail - 1] = '\0';
             pp->data--;
             pp->room++;
         }
-        printf("After P%d read from the pipe: fd=%d\n", running->pid, fd);
+        // There is probably room in the pipe now
+
+        // If there is room in the pipe, wakeup writers waiting for room 
+        if(pp->room > 0) kwakeup((int)&pp->room); 
         show_pipe(pp);
-
-        // Wake writers that were waiting for room 
-        if(i > 0) kwakeup((int)&pp->room); 
-
-        // Wait for data to be written to the pipe
-        if(pp->data <= 0) kwait(&pp->data);
+        getc();
     }
 
-    printf("P%d has finished writing to the pipe: fd=%d\n", running->pid, fd);
+    //show_pipe(pp);
+    printf("P%d has finished reading from the pipe: fd=%d\n", running->pid, fd);
     return i;
 }
 
-// Tries to write nbytes of data to the pipe
+// Tries to write n bytes of data to the pipe
 int write_pipe(int fd, char *buf, int n)
 {
-    int i;
-
+    int i = 0;
     PIPE* pp = running->fd[fd]->pipe_ptr;
 
-    printf("Before P%d writes to the pipe: fd=%d\n", running->pid, fd);
     show_pipe(pp);
+    printf("P%d attempting to write %d bytes to the pipe: fd=%d\n", 
+            running->pid, n, fd);
 
-    //           ------------------------------------------------------------------
-    //      (1). If (no READER on the pipe) return BROKEN_PIPE_ERROR;
-    //           ------------------------------------------------------------------
-    //
-    // (pipe still has READERs):
-    //
-    //      (2). If (pipe has room){
-    //               write as much as it can until all nbytes are written or (3).
-    //               "wakeup" READERs that are waiting for data.  
-    //           }
-    //      (3)  If (no room in pipe){
-    //              "wakeup" READERs that are waiting for data
-    //              "wait" for room; 
-    //               then try to write again from (1).
-    //           }
-    //           ------------------------------------------------------------------
-
-    i = 0;
+    // While the # bytes written is less than the # bytes requested
     while(i < n)
     {
+        // If there are no readers to read data from the pipe,
+        // don't bother writing data to it
         if(pp->nreader <= 0)
         {
-            printf("Error write_pipe(fd=%d): No readers - BROKEN PIPE\n", fd);
+            printf("Error: Broken Pipe, fd=%d\n", fd);
             return FAILURE;
         }
+        // There must be at least one reader
 
-        // Write data
-        for( ; i < n && pp->room > 0; i++)
+        // If the pipe is full, wait for the reader to make room
+        if(pp->room <= 0) ksleep((int)&pp->room);
+        // There must be room in the pipe now
+
+        // Get data from the supplied buffer and write it to the pipe
+        for(; i < n && pp->room > 0; i++)
         {
             pp->head %= PSIZE;
-            pp->buf[pp->head++] = buf[i]; // THINK ABOUT 
+            pp->buf[pp->head++] = get_byte(running->uss, (u16)&buf[i]);
             pp->data++;
             pp->room--;
         }
-        printf("After P%d wrote to the pipe:\n", running->pid, fd);
+        // There is probably data in the pipe now
+
+        // If there is data in the pipe, wakeup readers waiting for data 
+        if(pp->data > 0) kwakeup((int)&pp->data); 
         show_pipe(pp);
-
-        // Wake readers that were waiting for data
-        if(i > 0) kwakeup((int)&pp->data); 
-
-        // Wait for reader to read and make room in the pipe
-        if(pp->room <= 0) kwait(&pp->room);
+        getc();
     }
 
-    printf("P%d has finished writing to pipe: fd=%d\n", running->pid, fd);
+    //show_pipe(pp);
+    printf("P%d has finished writing %d bytes to the pipe: fd=%d\n", running->pid, i, fd);
     return i;
 }
 
@@ -230,6 +202,8 @@ int kpipe(int pd[2])
     put_word(read_fd, running->uss, (u16)&pd[0]);
     put_word(write_fd, running->uss, (u16)&pd[1]);
 
+    pfd();
+
     return SUCCESS;
 }
 
@@ -256,6 +230,7 @@ int close_pipe(int fd)
         }
 
         kwakeup((int)&pp->room);          // wakeup any Writer on the pipe 
+        pfd();
         return SUCCESS; 
     }
 
@@ -273,10 +248,12 @@ int close_pipe(int fd)
         }
 
         kwakeup((int)&pp->data);          // wakeup any READER on pipe 
+        pfd();
         return SUCCESS; 
     }
 
     printf("Unable to close pipe connected to fd[%d] because of unknown mode\n", fd);
+    pfd();
     return FAILURE;
 }
 

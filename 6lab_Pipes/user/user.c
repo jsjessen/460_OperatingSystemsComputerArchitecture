@@ -16,6 +16,7 @@ char *cmd[]=
     "close",
     "read",
     "write",
+    "test",
     0
 };
 
@@ -23,7 +24,7 @@ int show_menu()
 {
     printf("********************** Menu ************************\n");
     printf("* ps  chname  kmode switch  wait  exit  fork  exec *\n");
-    printf("*         pipe   pfd    close  read  write         *\n");
+    printf("*  pipe   pfd    close  read  write   test         *\n");
     printf("****************************************************\n");
     return SUCCESS;
 }
@@ -43,10 +44,57 @@ int find_cmd(char *name)
     return FAILURE;
 }
 
-int pd[2];
+int test_pipe()
+{
+    int pid, n;
+    int pd[2];
+
+    // Create pipe
+    if((syscall(SYSCALL_PIPE, pd)) != SUCCESS)
+        printf("Error user.c: test_pipe(): Create pipe failed");
+
+    // Fork child process
+    if((pid = fork()) < 0)
+        printf("Error user.c: test_pipe(): Fork failed");
+
+    if(pid)
+    { // Parent - Pipe Writer
+        //char* buf = "0123456789A0123456789B0123456789C0123456789D0123456789";
+        char* buf = "The quick brown fox jumped over the lazy dog!";
+        syscall(SYSCALL_CLOSE_PIPE, pd[0]); // close PipeIn
+        _getc();
+        kswitch();
+
+        n = syscall(SYSCALL_WRITE_PIPE, pd[1], buf, 45);
+        printf("Parent P%d wrote %d bytes to the pipe\n", getpid(), n);
+        buf[n] = '\0';
+        printf("Wrote = \"%s\"\n", buf);
+        _getc();
+
+        kswitch();
+        return n;
+    }
+    else
+    { // Child - Pipe Reader
+        char buf[256];
+        syscall(SYSCALL_CLOSE_PIPE, pd[1]); // close PipeOut
+        _getc();
+        kswitch();
+        _getc();
+
+        n = syscall(SYSCALL_READ_PIPE, pd[0], buf, 45);
+        printf("Child P%d read %d bytes from the pipe\n", getpid(), n);
+        printf("Read = \"%s\"\n", buf);
+        _getc();
+
+        return n;
+    }
+}
+
 int pipe()
 {
-    return syscall(SYSCALL_PIPE, pd);
+    int other_pd[2];
+    return syscall(SYSCALL_PIPE, other_pd);
 }
 
 int pfd()
@@ -58,6 +106,7 @@ int close()
 {
     int fd;
 
+    pfd();
     printf("Enter FD to close: ");
     fd = geti();
 
@@ -69,25 +118,30 @@ int read()
     int fd, nbytes;
     char buf[1024];
 
-    printf("Enter FD to read: ");
+    pfd();
+    printf("Read from FD: ");
     fd = geti();
-    printf("Enter number of bytes to read: ");
+    printf("\nEnter number of bytes to read: ");
     nbytes = geti();
+    printf("\n");
 
     return syscall(SYSCALL_READ_PIPE, fd, buf, nbytes);
 }
 
 int write()
 {
-    int fd, nbytes;
+    int fd;
     char buf[1024];
 
-    printf("Enter FD to read: ");
+    pfd();
+    printf("Write to FD: ");
     fd = geti();
-    printf("Enter number of bytes to read: ");
-    nbytes = geti();
+    printf("\n");
+    printf("Write: ");
+    gets(buf);
+    printf("\n");
 
-    return syscall(SYSCALL_WRITE_PIPE, fd, buf, nbytes);
+    return syscall(SYSCALL_WRITE_PIPE, fd, buf, strlen(buf));
 }
 
 int getpid()
