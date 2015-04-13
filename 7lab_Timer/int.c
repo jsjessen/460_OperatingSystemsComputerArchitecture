@@ -43,6 +43,8 @@ int kcinth()
         case 33 : result = close_pipe(b);              break;
         case 34 : result = pfd();                      break;
 
+        case 50 : result = chcolor((u16)b);            break;
+
         case 90 : result = getc();                     break;
         case 91 : color  = running->pid + 11;
                   result = putc(b);                    break;       

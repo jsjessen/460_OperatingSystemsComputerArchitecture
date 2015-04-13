@@ -49,15 +49,16 @@ BOOT_OBJ_DIR := $(BOOT_DIR)/$(OBJ_DIR)
 BOOT_OBJECTS := $(addprefix $(BOOT_OBJ_DIR)/, \
 				bs.o main.o)
 
-# Library
-LIB_DIR := lib
-LIB := $(LIB_DIR)/jj_lib.a
-LIB_OBJ_DIR := $(LIB_DIR)/$(OBJ_DIR)
-LIB_OBJECTS := $(addprefix $(LIB_OBJ_DIR)/, \
-				getc.o putc.o setds.o math.o string.o io.o \
+# Kernel Library
+KLIB_DIR := lib
+KLIB := $(KLIB_DIR)/jj_lib.a
+KLIB_OBJ_DIR := $(KLIB_DIR)/$(OBJ_DIR)
+KLIB_OBJECTS := $(addprefix $(KLIB_OBJ_DIR)/, \
+				getc.o setds.o math.o string.o io.o \
 				queue.o list.o transfer.o)
+
 # TEMPORARY
-KC_LIB_DIR := $(LIB_DIR)/kclib_obj
+KC_LIB_DIR := $(KLIB_DIR)/kclib_obj
 
 # Users
 USER_DIR := user
@@ -70,6 +71,13 @@ USER1_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
 USER2_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
 				u.o user.o u2.o crt0.o)
 
+# User Library
+ULIB_DIR := $(USER_DIR)/lib
+ULIB := $(ULIB_DIR)/jj_lib.a
+ULIB_OBJ_DIR := $(ULIB_DIR)/$(OBJ_DIR)
+ULIB_OBJECTS := $(addprefix $(ULIB_OBJ_DIR)/, \
+				math.o string.o io.o)
+
 # Kernel
 # Assumes that Kernel is in the same directory as this Makefile
 KERNEL := $(OS)
@@ -80,7 +88,7 @@ KERNEL_OBJECTS := $(addprefix $(KERNEL_OBJ_DIR)/, \
 
 # Decided to use the verbose but explicit method instead
 # Specifies a list of directories that make should search
-#VPATH := $(BOOT_DIR) $(LIB_DIR) $(USER_DIR)
+#VPATH := $(BOOT_DIR) $(KLIB_DIR) $(USER_DIR)
 
 HIDE_WARNINGS := 2>/dev/null
 
@@ -155,55 +163,79 @@ $(BOOT_OBJ_DIR)/main.o: $(BOOT_DIR)/main.c $(BOOT_DIR)/bs.s $(BOOT_DIR)/ext2.h
 	$(CC) $(CFLAGS) $< -o $@
 	
 ################################################################
-## Library
+## Kernel Library
 ################################################################
 
-$(LIB): $(LIB_OBJECTS) $(KC_LIB_DIR)/loader.o $(KC_LIB_DIR)/diskio.o
-	ar cr $(LIB) $?
+$(KLIB): $(KLIB_OBJECTS) $(KC_LIB_DIR)/loader.o $(KC_LIB_DIR)/diskio.o
+	ar cr $(KLIB) $?
 
 	@echo -ne "$(WARN_COLOR)"
 	@echo "=========================================="
-	@echo "Made Library"
+	@echo "Made Kernel Library"
 	@echo "------------------------------------------"
 	@echo -ne "$(NO_COLOR)"
 
-$(LIB_OBJECTS): | $(LIB_OBJ_DIR)
+$(KLIB_OBJECTS): | $(KLIB_OBJ_DIR)
 
-$(LIB_OBJ_DIR):
+$(KLIB_OBJ_DIR):
 	@mkdir -p -- $@
 
-$(LIB_OBJ_DIR)/getc.o: $(LIB_DIR)/getc.s type.h
+$(KLIB_OBJ_DIR)/getc.o: $(KLIB_DIR)/getc.s type.h
 	$(SC) $< -o $@
 
-$(LIB_OBJ_DIR)/putc.o: $(LIB_DIR)/putc.s type.h
-	$(SC) $< -o $@
-
-$(LIB_OBJ_DIR)/setds.o: $(LIB_DIR)/setds.s type.h
+$(KLIB_OBJ_DIR)/setds.o: $(KLIB_DIR)/setds.s type.h
 	$(SC) $< -o $@
 	
-$(LIB_OBJ_DIR)/math.o: $(LIB_DIR)/math.c type.h
+$(KLIB_OBJ_DIR)/math.o: $(KLIB_DIR)/math.c type.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/string.o: $(LIB_DIR)/string.c $(LIB_DIR)/math.h type.h 
+$(KLIB_OBJ_DIR)/string.o: $(KLIB_DIR)/string.c $(KLIB_DIR)/math.h type.h 
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/io.o: $(LIB_DIR)/io.c type.h
+$(KLIB_OBJ_DIR)/io.o: $(KLIB_DIR)/io.c type.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/queue.o: $(LIB_DIR)/queue.c type.h
+$(KLIB_OBJ_DIR)/queue.o: $(KLIB_DIR)/queue.c type.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/list.o: $(LIB_DIR)/list.c type.h
+$(KLIB_OBJ_DIR)/list.o: $(KLIB_DIR)/list.c type.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(LIB_OBJ_DIR)/transfer.o: $(LIB_DIR)/transfer.c type.h
+$(KLIB_OBJ_DIR)/transfer.o: $(KLIB_DIR)/transfer.c type.h
+	$(CC) $(CFLAGS) $< -o $@
+
+################################################################
+## User Library
+################################################################
+
+$(ULIB): $(ULIB_OBJECTS)
+	ar cr $(ULIB) $?
+
+	@echo -ne "$(WARN_COLOR)"
+	@echo "=========================================="
+	@echo "Made User Library"
+	@echo "------------------------------------------"
+	@echo -ne "$(NO_COLOR)"
+
+$(ULIB_OBJECTS): | $(ULIB_OBJ_DIR)
+
+$(ULIB_OBJ_DIR):
+	@mkdir -p -- $@
+
+$(ULIB_OBJ_DIR)/math.o: $(ULIB_DIR)/math.c $(USER_DIR)/type.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(ULIB_OBJ_DIR)/string.o: $(ULIB_DIR)/string.c $(ULIB_DIR)/math.h $(USER_DIR)/type.h 
+	$(CC) $(CFLAGS) $< -o $@
+
+$(ULIB_OBJ_DIR)/io.o: $(ULIB_DIR)/io.c $(USER_DIR)/type.h $(USER_DIR)/syscall.h
 	$(CC) $(CFLAGS) $< -o $@
 
 ################################################################
 ## User
 ################################################################
 
-$(USER1): $(USER1_OBJECTS) $(LIB)
+$(USER1): $(USER1_OBJECTS) $(ULIB)
 	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
@@ -212,7 +244,7 @@ $(USER1): $(USER1_OBJECTS) $(LIB)
 	@echo "------------------------------------------"
 	@echo -ne "$(NO_COLOR)"
 	
-$(USER2): $(USER2_OBJECTS) $(LIB)
+$(USER2): $(USER2_OBJECTS) $(ULIB)
 	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
@@ -227,7 +259,7 @@ $(USER2_OBJECTS): | $(USER_OBJ_DIR)
 $(USER_OBJ_DIR):
 	@mkdir -p -- $@
 
-$(USER_DIR)/user.h: type.h $(LIB)
+$(USER_DIR)/user.h: type.h $(ULIB)
 
 $(USER_OBJ_DIR)/u.o: $(USER_DIR)/u.s
 	$(SC) $< -o $@
@@ -248,7 +280,7 @@ $(USER_OBJ_DIR)/u2.o: $(USER_DIR)/u2.c $(USER_DIR)/user.h
 ## Kernel 
 ################################################################
 
-$(KERNEL): $(KERNEL_OBJECTS) $(LIB)
+$(KERNEL): $(KERNEL_OBJECTS) $(KLIB)
 	$(LINK) $+ $(LFLAGS) -d -o $@ $(HIDE_WARNINGS)
 	
 	@echo -ne "$(WARN_COLOR)"
@@ -262,7 +294,7 @@ $(KERNEL_OBJECTS): | $(KERNEL_OBJ_DIR)
 $(KERNEL_OBJ_DIR):
 	@mkdir -p -- $@
 
-$kernel.h: type.h $(LIB) 
+$kernel.h: type.h $(KLIB) 
 
 $(KERNEL_OBJ_DIR)/ts.o: ts.s
 	$(SC) $< -o $@
@@ -300,18 +332,18 @@ clean:
 	rm -f $(JJ_IMAGE) 
 	rm -f $(KERNEL_OBJ_DIR)/*.o
 	rm -f $(BOOT_OBJ_DIR)/*.o
-	rm -f $(LIB_OBJ_DIR)/*.o
+	rm -f $(KLIB_OBJ_DIR)/*.o
 	rm -f $(USER_OBJ_DIR)/*.o
 
 super_clean: clean
 	rm -f $(KERNEL) 
 	rm -f $(BOOTER) 
-	rm -f $(LIB) 	
+	rm -f $(KLIB) 	
 	rm -f $(USER1) 	
 	rm -f $(USER2) 	
 	rm -fr $(KERNEL_OBJ_DIR)
 	rm -fr $(BOOT_OBJ_DIR)
-	rm -fr $(LIB_OBJ_DIR)
+	rm -fr $(KLIB_OBJ_DIR)
 	rm -fr $(USER_OBJ_DIR)
 
 super_duper_clean: super_clean

@@ -4,7 +4,9 @@
 #ifndef __IO_H__
 #define __IO_H__
 
+
 #include <stdarg.h>
+#include <syscall.h>
 #include "string.h"
 #include "../type.h"
 
@@ -13,7 +15,6 @@
 #define HEX 16
 
 // Imported from ts.s 
-char getc(void);
 void* get_ebp(void);
 void* get_esp(void);
 

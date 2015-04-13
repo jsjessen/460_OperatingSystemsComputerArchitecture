@@ -124,8 +124,10 @@ int body()
 
 int main()
 {
+    vid_init(); // Must initialize video driver first to see anything
+
     color = 0xB3A;
-    printf("MTX starts in main()\n");
+    printf("Welcome to James' MTX System!\n");
     printf("-----------------\n");
     printf("Help Menu: h or ?\n");
     printf("-----------------\n");

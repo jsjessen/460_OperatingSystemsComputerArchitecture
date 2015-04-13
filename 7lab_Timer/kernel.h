@@ -109,6 +109,13 @@ int write_pipe(int fd, char* buf, int n);
 int kpipe(int pd[2]);
 int close_pipe(int fd);
 
+// vid.c
+int vid_init();
+int scroll();
+int putc(char c);
+int set_VDC(u16 reg, u16 val);
+int chcolor(u16 y);
+
 // int.c
 int kcinth();
 int do_ps();
