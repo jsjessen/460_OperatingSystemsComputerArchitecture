@@ -1,4 +1,4 @@
-###You may learn from my code, but copying it is strictly prohibitited.
+###You may learn from my code, but copying it is strictly prohibited.
 
 --------------------------------------------------------------------
 
