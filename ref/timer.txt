@@ -1,7 +1,3 @@
-<Title>560 Class Notes</Title>
-<Body bgcolor="#00cccc" text="#000000">
-<H1>460 Notes on Timer</H1>
-<Pre>
           460 NOTES on TIMER and Assignment 
 
 0. BACKGROUND:  NOTES on Interrupts

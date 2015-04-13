@@ -12,7 +12,7 @@ original VGA to what's broadly referred to as SVGA. MTX does not support
 graphics display. It uses only the basic VGA mode to display text in 16 colors
 with 640x400 resolution. From a programming point of view, the PC's display 
 works as follows. It is a memory mapped display device. The display screen is 
-organized as 25 rows by 80 columns, for a total of 25x50=2000 characters. The 
+organized as 25 rows by 80 columns, for a total of 25x80=2000 characters. The 
 display memory, known as the video RAM, is a memory area containing charaters 
 to be displayed. Each character in the video RAM is represented by 2 bytes =
 [attribute, character], where the attribute byte determines how to display the

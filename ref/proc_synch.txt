@@ -515,8 +515,8 @@ JJ: if you always go the same direction, then you are guarenteed not to have a c
    run-time):
 
       A process can only request the resources in a decreasing ranking order,
-      i.e. if a process has reequested Ri, it can only request Rj for j &lt.i,
-      but NOT any Rj for j &gt. i.
+      i.e. if a process has reequested Ri, it can only request Rj for j < i,
+      but NOT any Rj for j > i.
 
    Using this scheme, it is easy to prove (by induction) that there won't be
    amy loops in the requests, hence no chance of deadlock.
@@ -649,9 +649,9 @@ JJ: if you always go the same direction, then you are guarenteed not to have a c
                       P3 has r3 and waits for r2;
      The corresponding graph G is
                 
-           r1 --&gt P1 --&gt r2 --&gt P2 --&gt r3 --&gt P3
+           r1 --> P1 --> r2 --> P2 --> r3 --> P3
                          |                     |
-                         |&lt---------------------
+                         |<---------------------
 
      which shows that P2, P3 are in a deadlock.
 
