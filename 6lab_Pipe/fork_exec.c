@@ -156,16 +156,18 @@ int fork()
 }
 
 // Change the running process's image 
-// BUG: Works with user_two or U2, but u2 is mistaken for u1
 int exec(char* cmdline)
 {
     int i, length;
     char buf[NAMELEN];
-    char *cp = buf;
+    char *cp;
     u16 usp, segment = running->uss;
 
+    strcpy(buf, "/bin/");
+    cp = &buf[5];
+
     // Get cmdline char by char from user space to kernel space 
-    length = 0;
+    length = strlen(buf);
     while(length < NAMELEN)
     {
         *cp = get_byte(segment, (u16)cmdline);
@@ -175,7 +177,7 @@ int exec(char* cmdline)
     buf[NAMELEN - 1] = '\0'; // ensure it is null terminated
     // buf now contains a local copy of the cmdline
 
-    printf("\nP%d exec '%s' in segment %x\n", 
+    printf("\nP%d exec \"%s\" in segment %x\n", 
             running->pid, buf, segment);
 
     // After loading the new Umode image, fix up the ustack contents to make the

@@ -12,6 +12,7 @@
 
 #include "type.h"
 #include "lib/io.h"
+#include "lib/string.h"
 #include "lib/queue.h"
 #include "lib/list.h"
 #include "lib/transfer.h"
