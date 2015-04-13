@@ -81,6 +81,11 @@ int chname(char* name)
     return SUCCESS;
 }
 
+int kmode()
+{
+    return body();
+}
+
 // enter Kernel to die with an exitValue
 int kkexit(int value)
 {

@@ -46,8 +46,11 @@ void do_tswitch() // s
 
 int do_exit() // q
 {
+    int exitValue;
     printf("Enter exit value: ");
-    return kexit(geti());
+    exitValue = geti();
+    printf("\n");
+    return kexit(exitValue);
 }
 
 void do_sleep() // z
@@ -57,9 +60,10 @@ void do_sleep() // z
     {
         printf("Enter event value to sleep on: ");
         event = geti();
+        printf("\n");
 
         if(event <= 0)
-            printf("\nEvent value must be greater than zero\n\n");
+            printf("Event value must be greater than zero\n\n");
     }
 
     ksleep(event);
@@ -68,8 +72,11 @@ void do_sleep() // z
 // wakeup ALL PROCs sleeping on event
 void do_wakeup() // a
 {
+    int wakeValue;
     printf("Enter an event value to wakeup: ");
-    kwakeup(geti());
+    wakeValue = geti();
+    printf("\n");
+    kwakeup(wakeValue);
 }
 
 // Enter Kernel to wait for a ZOMBIE child,
@@ -85,7 +92,7 @@ int do_wait(int* status) // w
     pid = kwait(status);
 
     if(pid >= 0)
-        printf("\n\nP%d finds zombie child P%d with exit status %x and resumes", running->pid, pid, *status);
+        printf("\n\nP%d finds zombie child P%d with exit status %x and resumes\n", running->pid, pid, *status);
 
     return SUCCESS;
 }
@@ -135,7 +142,7 @@ int kexit(u16 exitValue)
     // Close opened file descriptors
     for(i = 0; i < NFD; i++)
     {
-        if(running->fd[i] != 0)
+        if(running->fd[i] != NULL)
             close_pipe(i);
     }
 

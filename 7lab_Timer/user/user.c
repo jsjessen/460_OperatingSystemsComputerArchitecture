@@ -51,7 +51,7 @@ int find_cmd(char *name)
 
 int kmode()
 {
-    return 0;
+    syscall(SYSCALL_KMODE);
 }
 
 int test_pipe()
@@ -122,6 +122,7 @@ int close()
     pfd();
     printf("Enter FD to close: ");
     fd = geti();
+    printf("\n");
 
     return syscall(SYSCALL_CLOSE_PIPE, fd);
 }
@@ -134,7 +135,8 @@ int read()
     pfd();
     printf("Read from FD: ");
     fd = geti();
-    printf("\nNumber of bytes to read: ");
+    printf("\n");
+    printf("Number of bytes to read: ");
     nbytes = geti();
     printf("\n");
 
@@ -172,6 +174,7 @@ int chname()
     char s[64];
     printf("input new name : ");
     gets(s);
+    printf("\n");
     return syscall(SYSCALL_CHNAME, s, 0);
 }
 
@@ -185,7 +188,7 @@ int wait()
     int child, exitValue;
     printf("proc %d enter Kernel to wait for a child to die\n", getpid());
     child = syscall(SYSCALL_WAIT, &exitValue, 0);
-    printf("proc %d back from wait, dead child=%d", getpid(), child);
+    printf("proc %d back from wait, dead child=%d\n", getpid(), child);
     if (child>=0)
         printf("exitValue=%d", exitValue);
     printf("\n"); 
@@ -241,5 +244,6 @@ int exec()
     char cmdline[64];
     printf("inputs : ");
     gets(cmdline);
+    printf("\n");
     return syscall(SYSCALL_EXEC, cmdline, 0);
 }
