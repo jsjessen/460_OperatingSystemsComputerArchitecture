@@ -67,9 +67,9 @@ USER2 := $(USER_DIR)/u2
 USERS := $(USER1) $(USER2)
 USER_OBJ_DIR := $(USER_DIR)/$(OBJ_DIR)
 USER1_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o user.o u1.o crt0.o)
+				u.o syscall.o cmd.o u1.o crt0.o)
 USER2_OBJECTS := $(addprefix $(USER_OBJ_DIR)/, \
-				u.o user.o u2.o crt0.o)
+				u.o syscall.o cmd.o u2.o crt0.o)
 
 # User Library
 ULIB_DIR := $(USER_DIR)/lib
@@ -259,7 +259,7 @@ $(USER2_OBJECTS): | $(USER_OBJ_DIR)
 $(USER_OBJ_DIR):
 	@mkdir -p -- $@
 
-$(USER_DIR)/user.h: type.h $(ULIB)
+$(USER_DIR)/cmd.h: type.h $(ULIB)
 
 $(USER_OBJ_DIR)/u.o: $(USER_DIR)/u.s
 	$(SC) $< -o $@
@@ -267,13 +267,16 @@ $(USER_OBJ_DIR)/u.o: $(USER_DIR)/u.s
 $(USER_OBJ_DIR)/crt0.o: $(USER_DIR)/crt0.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(USER_OBJ_DIR)/user.o: $(USER_DIR)/user.c $(USER_DIR)/user.h
+$(USER_OBJ_DIR)/cmd.o: $(USER_DIR)/cmd.c $(USER_DIR)/cmd.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(USER_OBJ_DIR)/u1.o: $(USER_DIR)/u1.c $(USER_DIR)/user.h
+$(USER_OBJ_DIR)/syscall.o: $(USER_DIR)/syscall.c $(USER_DIR)/syscall.h
 	$(CC) $(CFLAGS) $< -o $@
 
-$(USER_OBJ_DIR)/u2.o: $(USER_DIR)/u2.c $(USER_DIR)/user.h
+$(USER_OBJ_DIR)/u1.o: $(USER_DIR)/u1.c $(USER_DIR)/cmd.h
+	$(CC) $(CFLAGS) $< -o $@
+
+$(USER_OBJ_DIR)/u2.o: $(USER_DIR)/u2.c $(USER_DIR)/cmd.h
 	$(CC) $(CFLAGS) $< -o $@
 
 ################################################################
@@ -333,17 +336,20 @@ clean:
 	rm -f $(KERNEL_OBJ_DIR)/*.o
 	rm -f $(BOOT_OBJ_DIR)/*.o
 	rm -f $(KLIB_OBJ_DIR)/*.o
+	rm -f $(ULIB_OBJ_DIR)/*.o
 	rm -f $(USER_OBJ_DIR)/*.o
 
 super_clean: clean
 	rm -f $(KERNEL) 
 	rm -f $(BOOTER) 
 	rm -f $(KLIB) 	
+	rm -f $(ULIB) 	
 	rm -f $(USER1) 	
 	rm -f $(USER2) 	
 	rm -fr $(KERNEL_OBJ_DIR)
 	rm -fr $(BOOT_OBJ_DIR)
 	rm -fr $(KLIB_OBJ_DIR)
+	rm -fr $(ULIB_OBJ_DIR)
 	rm -fr $(USER_OBJ_DIR)
 
 super_duper_clean: super_clean

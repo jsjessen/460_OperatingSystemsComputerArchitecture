@@ -6,8 +6,8 @@
 
 
 #include <stdarg.h>
-#include <syscall.h>
 #include "string.h"
+#include "../syscall.h"
 #include "../type.h"
 
 #define OCT 8
