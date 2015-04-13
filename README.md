@@ -12,11 +12,12 @@
 
 #Development Setup
 
-Ubuntu 32 bit
-
-QEMU
-
-bcc, as86, ld86
+- Ubuntu 32-bit (KC often assumes everyone in the class uses this, so I adopted it for his courses)
+- VIM (learning to use it has really paid off)
+- QEMU (specifically, qemu-system-i386, but any Virtual Machine *should* work)
+- bcc
+- as86
+- ld86
 
 ##Note
 
