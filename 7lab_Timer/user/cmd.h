@@ -15,7 +15,7 @@
 #include "lib/io.h"
 #include "lib/string.h"
 
-#define LEN 64
+#define MAX_INPUT_SIZE 64
 
 extern int color;
 

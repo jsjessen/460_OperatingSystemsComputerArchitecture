@@ -5,7 +5,7 @@
 #define __TYPE_H__
 
 
-#define NULL   0
+#define NULL 0
 
 typedef unsigned char  u8;  // Unsigned  8-bit = 1 byte
 typedef unsigned short u16; // Unsigned 16-bit = 2 bytes

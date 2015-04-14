@@ -190,7 +190,7 @@ int test_pipe()
 
         n = syscall(READ_PIPE, pd[0], buf, 45);
 
-        color = 0x000A + (getpid() % 6); 
+        //color = 0x000A + (getpid() % 6); 
         printf("\n(Umode) P%d read = \"%s\"\n", getpid(), buf);
 
         syscall(CLOSE_PIPE, pd[0]); // close Pipe

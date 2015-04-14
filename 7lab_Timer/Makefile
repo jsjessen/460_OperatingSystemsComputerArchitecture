@@ -90,7 +90,8 @@ KERNEL_OBJECTS := $(addprefix $(KERNEL_OBJ_DIR)/, \
 # Specifies a list of directories that make should search
 #VPATH := $(BOOT_DIR) $(KLIB_DIR) $(USER_DIR)
 
-HIDE_WARNINGS := 2>/dev/null
+# 2>/dev/null
+HIDE_WARNINGS := > make.out
 
 ################################################################
 ## Operating System 
@@ -259,18 +260,16 @@ $(USER2_OBJECTS): | $(USER_OBJ_DIR)
 $(USER_OBJ_DIR):
 	@mkdir -p -- $@
 
-$(USER_DIR)/cmd.h: type.h $(ULIB)
-
 $(USER_OBJ_DIR)/u.o: $(USER_DIR)/u.s
 	$(SC) $< -o $@
 
 $(USER_OBJ_DIR)/crt0.o: $(USER_DIR)/crt0.c
 	$(CC) $(CFLAGS) $< -o $@
 
-$(USER_OBJ_DIR)/cmd.o: $(USER_DIR)/cmd.c $(USER_DIR)/cmd.h
+$(USER_OBJ_DIR)/cmd.o: $(USER_DIR)/cmd.c $(USER_DIR)/cmd.h $(USER_DIR)/syscall.h $(USER_DIR)/type.h $(ULIB)
 	$(CC) $(CFLAGS) $< -o $@
 
-$(USER_OBJ_DIR)/syscall.o: $(USER_DIR)/syscall.c $(USER_DIR)/syscall.h
+$(USER_OBJ_DIR)/syscall.o: $(USER_DIR)/syscall.c $(USER_DIR)/syscall.h $(USER_DIR)/type.h $(ULIB)
 	$(CC) $(CFLAGS) $< -o $@
 
 $(USER_OBJ_DIR)/u1.o: $(USER_DIR)/u1.c $(USER_DIR)/cmd.h

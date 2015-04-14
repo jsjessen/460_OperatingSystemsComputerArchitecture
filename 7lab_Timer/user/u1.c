@@ -1,36 +1,31 @@
 #include "cmd.h"
 
+int color;
+
 int main()//int argc, char* argv[])
 { 
-    char name[64]; 
-    int result;
+    char input[MAX_INPUT_SIZE]; 
     int (*cmd_fptr)();
+    int result;
+    int count = 0; // for demo/debug
 
-    int pid;
-    int count = 0;
-
-    pid = getpid();
-    color = 0x000A + (pid % 6); 
+    color = 0x000A + (getpid() % 6); 
     printf("\n====================================================\n");
     printf("Entering U1");
 
     while(true)
     {
-        pid = getpid();
-        color = 0x000A + (pid % 6); 
-
         printf("\n----------------------------------------------------\n");
-        printf("I am P%d in User Mode on Segment %x with count=%d\n", 
-                getpid(), getcs(), count++);
 
-        printf("Command ? ");
-        gets(name); 
-        printf("\n");
+        while(input[0] == '\0' || input[0] == '\n' || strlen(input) > MAX_INPUT_SIZE)
+        {
+            input[0] = '\0';
+            printf("Proc%d:Seg%x:User1(%d)$ ", getpid(), getcs(), count++);
+            gets(input); 
+            printf("\n");
+        }
 
-        if(strlen(name) <= 0)
-            continue;
-
-        cmd_fptr = find_cmd(name);
+        cmd_fptr = find_cmd(input);
         result = cmd_fptr();
     }
 }
