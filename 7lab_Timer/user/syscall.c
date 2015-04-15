@@ -60,7 +60,7 @@ int wait()
     return SUCCESS;
 } 
 
-int exit()
+int my_exit()
 {
     return syscall(EXIT);
 }
@@ -170,23 +170,23 @@ int test_pipe()
         //char* buf = "0123456789A0123456789B0123456789C0123456789D0123456789";
 
         syscall(CLOSE_PIPE, pd[0]); // close PipeIn
-        kswitch();
+        tswitch();
 
         n = syscall(WRITE_PIPE, pd[1], buf, 45);
         buf[n] = '\0';
-        _getc();
+        getc();
 
         syscall(CLOSE_PIPE, pd[1]); // close Pipe
 
-        kswitch();
+        tswitch();
         return n;
     }
     else
     { // Child - Pipe Reader
         char buf[256];
         syscall(CLOSE_PIPE, pd[1]); // close PipeOut
-        kswitch();
-        _getc();
+        tswitch();
+        getc();
 
         n = syscall(READ_PIPE, pd[0], buf, 45);
 

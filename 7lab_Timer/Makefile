@@ -49,6 +49,11 @@ BOOT_OBJ_DIR := $(BOOT_DIR)/$(OBJ_DIR)
 BOOT_OBJECTS := $(addprefix $(BOOT_OBJ_DIR)/, \
 				bs.o main.o)
 
+# KC's Library 
+KC_LIB_DIR := ../kclib
+KC_DISKIO := $(KC_LIB_DIR)/diskio.o
+KC_LOADER := $(KC_LIB_DIR)/loader.o
+
 # Kernel Library
 KLIB_DIR := lib
 KLIB := $(KLIB_DIR)/jj_lib.a
@@ -56,9 +61,6 @@ KLIB_OBJ_DIR := $(KLIB_DIR)/$(OBJ_DIR)
 KLIB_OBJECTS := $(addprefix $(KLIB_OBJ_DIR)/, \
 				getc.o setds.o math.o string.o io.o \
 				queue.o list.o transfer.o)
-
-# TEMPORARY
-KC_LIB_DIR := $(KLIB_DIR)/kclib_obj
 
 # Users
 USER_DIR := user
@@ -167,7 +169,7 @@ $(BOOT_OBJ_DIR)/main.o: $(BOOT_DIR)/main.c $(BOOT_DIR)/bs.s $(BOOT_DIR)/ext2.h
 ## Kernel Library
 ################################################################
 
-$(KLIB): $(KLIB_OBJECTS) $(KC_LIB_DIR)/loader.o $(KC_LIB_DIR)/diskio.o
+$(KLIB): $(KLIB_OBJECTS) $(KC_LOADER) $(KC_DISKIO)
 	ar cr $(KLIB) $?
 
 	@echo -ne "$(WARN_COLOR)"
@@ -177,6 +179,17 @@ $(KLIB): $(KLIB_OBJECTS) $(KC_LIB_DIR)/loader.o $(KC_LIB_DIR)/diskio.o
 	@echo -ne "$(NO_COLOR)"
 
 $(KLIB_OBJECTS): | $(KLIB_OBJ_DIR)
+
+$(KC_LIB_DIR)/%: 
+	@if [ ! -f $@ ]; then \
+		echo -e "$(WARN_COLOR)Downloading KC's Library...$(NO_COLOR)"; \
+		wget http://www.eecs.wsu.edu/~cs460/samples/LAB7.serial/mtxlib; \
+		mkdir -p -- $(KC_LIB_DIR); \
+		mv mtxlib $(KC_LIB_DIR)/mtxlib; \
+		cd $(KC_LIB_DIR); \
+		ar -x mtxlib; \
+		rm mtxlib; \
+	fi
 
 $(KLIB_OBJ_DIR):
 	@mkdir -p -- $@

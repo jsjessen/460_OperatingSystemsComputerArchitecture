@@ -51,7 +51,7 @@ int chname();
 int kmode();
 int tswitch();
 int wait();
-int kill();
+int my_exit();
 
 int fork();
 int exec();

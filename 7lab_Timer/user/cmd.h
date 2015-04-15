@@ -23,8 +23,8 @@ extern int color;
 int getcs();
 
 int show_menu();
-int (*find_cmd(char *name))();
-int invalid(char *name);
+int (*find_cmd(char *name))(void);
+int invalid();
 
 
 #endif

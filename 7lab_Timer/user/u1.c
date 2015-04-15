@@ -5,7 +5,7 @@ int color;
 int main()//int argc, char* argv[])
 { 
     char input[MAX_INPUT_SIZE]; 
-    int (*cmd_fptr)();
+    int (*cmd_fptr)(void);
     int result;
     int count = 0; // for demo/debug
 
