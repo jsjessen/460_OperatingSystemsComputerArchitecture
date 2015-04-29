@@ -1,0 +1,3 @@
+run:
+	mku init
+	q

@@ -1,0 +1,2 @@
+qemu-system-i386 -hda vdisk -serial /dev/pts/15 -serial /dev/pts/13 -parallel /dev/pts/9 -cdrom ../../given/MTXinstallCD.iso
+

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+PARTITION=1
+VDISK=jj2_vdisk
+SECTOR=$(./ptable $VDISK $PARTITION)
+OFFSET=$(expr $SECTOR \* 512)
+
+if [ $# \< 2 ]; then echo "Usage: mcp sourceFile destFile"; exit; fi
+
+echo partition=$PARTITION sector=$SECTOR offset=$OFFSET
+sudo mount -o loop,offset=$OFFSET $VDISK /mnt
+
+echo copying $1 into $VDISK
+sudo cp -v $1 $2
+sudo umount /mnt
+
+echo done $1
