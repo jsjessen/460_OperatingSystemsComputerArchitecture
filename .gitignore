@@ -4,7 +4,7 @@
 *mtx
 booter
 samples
-vdisk
+*vdisk*
 
 # Allow These 
 #############
