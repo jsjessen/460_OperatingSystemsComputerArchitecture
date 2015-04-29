@@ -6,19 +6,10 @@
 //   in which it forks children P2 on /dev/ttyS0. If the VM supports serial ports,
 //   P1 may also fork P3 /dev/ttyS0 and P4 on /dev/ttyS1. Then P1 waits for any 
 //   child to die. Henceforth, P1 plays the role of the INIT process (P1) in Unix.
-// 
-//              init                    // for process P1 
-// 
-// *************************************************************************
-//                       Logic of init.c 
-//  NOTE: this init.c creates only ONE login process on console=/dev/ttyS0
-//  YOUR init.c must also create login processes on serial ports /dev/ttyS0
-//  and /dev/ttyS1.. 
-// ************************************************************************
 
-int stdin, stdout;
+#include "ucode.h"
 
-#include "ucode.c"
+int stdin, stdout, stderr;
 
 int init(char* name);
 void login(char* path);
@@ -32,8 +23,10 @@ int main(int argc, char *argv[])
     // 1. open /dev/tty0 as 0 (READ) and 1 (WRITE) in order to display console messages
     stdin = open("/dev/tty0", O_RDONLY);
     stdout = open("/dev/tty0", O_WRONLY);
+    stderr = open("/dev/tty0", O_WRONLY);
 
     // 2. Now we can use printf, which calls putc(), which writes to stdout
+    printf("--------------------------------------------------\n");
     printf("JJINIT P%d: Starting initialization on console\n", getpid()); 
 
     pid_serial0 = init("ttyS0");
@@ -42,7 +35,7 @@ int main(int argc, char *argv[])
 
     // P1 should loop forever, waiting for one of its children to die
     // It can then clean up and replace the child process 
-    while(1)
+    while(true)
     {
         int status;
 
@@ -77,28 +70,29 @@ int init(char* name)
     pid = fork();
 
     if(pid)
-        printf("JJINIT P%d: Forking login task P%don %s\n", getpid(), pid, name); 
-    else
     {
-        // Close old stdin/stdout
-        if(stdin >= 0) close(stdin);
-        if(stdout >= 0) close(stdout);
-
-        // 1. open /dev/name as 0 (READ) and 1 (WRTIE) in order to <name> 
-        strcpy(path, "/dev/");
-        strcat(path, name);
-        stdin = open(path, O_RDONLY);
-        stdout = open(path, O_WRONLY); // example: open("/dev/tty0", O_RDONLY)
-
-        // 2. Now we can use printf, which calls putc(), which writes to stdout
-        printf("JJINIT P%d: Starting login on %s\n", getpid(), name); 
-        login(path);
+        printf("JJINIT P%d: Forking login task P%don %s\n", getpid(), pid, name); 
+        return pid;
     }
 
-    return pid;
+    // Close old stdin/stdout
+    if(stdin >= 0) close(stdin);
+    if(stdout >= 0) close(stdout);
+    if(stderr >= 0) close(stdout);
+
+    // Open new stdin/stdout
+    strcpy(path, "/dev/");
+    strcat(path, name);
+    stdin = open(path, O_RDONLY);
+    stdout = open(path, O_WRONLY); // open("/dev/tty0", O_WRONLY)
+    stderr = open(path, O_WRONLY); 
+
+    printf("JJINIT P%d: Starting login on %s\n", getpid(), name); 
+    login(path); // Should never return
 }
 
 // Run login command on path
+// Never return
 // Example name = "/dev/tty0"
 void login(char* path)
 {
@@ -106,8 +100,8 @@ void login(char* path)
 
     strcpy(buf, "login ");
     strcat(buf, path);
-    exec(buf); // example: exec("login /dev/tty0")
+    exec(buf); // exec("login /dev/tty0")
 
-    printf("Login Failed\n");
-    exit(-1);
+    printf("Execution of login failed!\n");
+    exit(FAILURE);
 }
