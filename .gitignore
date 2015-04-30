@@ -5,6 +5,7 @@
 booter
 samples
 *vdisk*
+tmp*
 
 # Allow These 
 #############
