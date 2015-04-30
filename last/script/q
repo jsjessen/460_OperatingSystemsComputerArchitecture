@@ -1,0 +1,12 @@
+#!/bin/bash
+
+PORT1=16
+PORT2=19
+PRINTER=20
+
+VDISK=jj2_vdisk
+CPU=2
+CD=MTXinstallCD.iso
+RAM=520 #MB
+
+qemu-system-i386 -hda $VDISK -m ${RAM}M -smp $CPU -serial /dev/pts/$PORT1 -serial /dev/pts/$PORT2 -parallel /dev/pts/$PRINTER -localtime -cdrom $CD  #-boot d

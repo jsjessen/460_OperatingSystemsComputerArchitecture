@@ -1,4 +1,7 @@
-//   (3). then (in sh) it loops forever (until "logout" or Contro-D):
+// James Jessen
+// CptS 460 - Spring 2015
+
+//   (3). then (in sh) it loops forever (until "logout" or Control-D):
 //         {
 //            prompts for a command line, e.g. cmdLine="cat filename"
 //            if (cmd == "logout") 
