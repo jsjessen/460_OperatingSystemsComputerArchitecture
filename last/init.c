@@ -25,6 +25,13 @@ int main(int argc, char *argv[])
     stdout = open("/dev/tty0", O_WRONLY);
     stderr = open("/dev/tty0", O_WRONLY);
 
+    if(stdin < 0 || stdout < 0 || stderr < 0)
+    {
+        // Try to print error, might not be able to see it
+        printf("Error init: Failed to open stdin/stdout/stderr\n");
+        exit(FAILURE);
+    }
+
     // 2. Now we can use printf, which calls putc(), which writes to stdout
     printf("--------------------------------------------------\n");
     printf("JJINIT P%d: Starting initialization on console\n", getpid()); 
@@ -37,7 +44,7 @@ int main(int argc, char *argv[])
     // It can then clean up and replace the child process 
     while(true)
     {
-        int status;
+        int pid, status;
 
         printf("JJINIT P%d: Waiting...\n", getpid());
         printf("--------------------------------------------------\n");
@@ -86,6 +93,13 @@ int init(char* name)
     stdin = open(path, O_RDONLY);
     stdout = open(path, O_WRONLY); // open("/dev/tty0", O_WRONLY)
     stderr = open(path, O_WRONLY); 
+
+    if(stdin < 0 || stdout < 0 || stderr < 0)
+    {
+        // Try to print error, might not be able to see it
+        printf("Error init: Failed to open stdin/stdout/stderr\n");
+        exit(FAILURE);
+    }
 
     printf("JJINIT P%d: Starting login on %s\n", getpid(), name); 
     login(path); // Should never return

@@ -1,13 +1,7 @@
 #ifndef __UCODE_H__
 #define __UCODE_H__
 
-#include "type.h";
-
-#define NULL 0
-#define EOF -1
-
-typedef enum { FAILURE = -1, SUCCESS = 0 } exit_t;
-typedef enum { false, true } bool;
+#include "type.h"
 
 int getpid();
 int getppid();

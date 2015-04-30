@@ -1,3 +1,18 @@
+#ifndef __TYPE_H__
+#define __TYPE_H__
+
+// ------- JJ --------
+#define EOF    -1
+#define BAD_FD -1
+
+#define STDIN   0
+#define STDOUT  1
+#define STDERR  2
+
+typedef enum { FAILURE = -1, SUCCESS = 0 } exit_t;
+typedef enum { false, true } bool;
+
+// ------- KC --------
 #define NULL       0
 #define NPROC     17
 #define NTHREAD   16
@@ -366,3 +381,5 @@ typedef struct mbuf{
   int sender;
   char contents[128];
 } MBUF;
+
+#endif
