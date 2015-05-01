@@ -11,7 +11,7 @@ echo partition=$PARTITION sector=$SECTOR offset=$OFFSET
 sudo mount -o loop,offset=$OFFSET $VDISK /mnt
 
 echo copying $1 into $VDISK
-sudo cp -v $1 $2
+sudo cp -av $1 $2
 sudo umount /mnt
 
 echo done $1

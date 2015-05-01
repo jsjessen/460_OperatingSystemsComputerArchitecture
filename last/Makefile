@@ -7,31 +7,31 @@ SHELL := /bin/bash
 ## Makefile for James' & KC's MTX Operating System
 ################################################################
 
-# Run 'make ports' launch terminals and update port tty's 
-TTYS_FILE=ttys.dat
-SERIAL_PORT0=$$(sed -n '1{p;q}' $(TTYS_FILE))
-SERIAL_PORT1=$$(sed -n '2{p;q}' $(TTYS_FILE))
-PRINTER=$$(sed -n '3{p;q}' $(TTYS_FILE))
-
 # Virtual Disk Images
 DISK_DIR := disk
 KC_VDISK := $(DISK_DIR)/vdisk
 JJ_VDISK := $(DISK_DIR)/jj_vdisk
 CD := $(DISK_DIR)/MTXinstallCD.iso
 
-#Virtual Machine
+# Ports
+TTYS_FILE := ttys.dat
+SERIAL_PORT0 := $$(sed -n '1{p;q}' $(TTYS_FILE)) # line 1
+SERIAL_PORT1 := $$(sed -n '2{p;q}' $(TTYS_FILE)) # line 2
+PRINTER      := $$(sed -n '3{p;q}' $(TTYS_FILE)) # line 3
+#SERIAL_PORT0 := 1
+#SERIAL_PORT1 := 2
+#PRINTER      := 3
+
+# Virtual Machine
 VM := qemu-system-i386
-VM_RAM := 520 #MB
+VM_RAM := 520#MB
 VM_CPU := 2
 VM_FLAGS = -hda $(JJ_VDISK) -m $(VM_RAM)M -smp $(VM_CPU) \
-			-serial $(SERIAL_PORT0) \
-			-serial $(SERIAL_PORT1) \
-			-parallel $(PRINTER) \
-			-localtime -cdrom $(CD) #-boot d
-
-PARTITION=1
-SECTOR=$$(./ptable disk/jj_vdisk 1)
-OFFSET=$$(expr $(SECTOR) \* 512)
+		   -serial $(SERIAL_PORT0) \
+		   -serial $(SERIAL_PORT1) \
+		   -parallel $(PRINTER) \
+		   -localtime 
+			#-cdrom $(CD) -boot d #Boot from CD
 
 .PHONY : all run clean super_clean debug debug_make
 
@@ -71,16 +71,25 @@ LOGIN := login
 LOGIN_OBJECTS := $(addprefix $(OBJ_DIR)/, \
 				   u.o login.o ucode.o util.o)
 
-HIDE_WARNINGS := 2>/dev/null
+PARTITION=1
+SECTOR=$$(./ptable $(JJ_VDISK) $(PARTITION))
+OFFSET=$$(expr $(SECTOR) \* 512)
 
 ################################################################
-## Operating System 
+## Arrange Files 
 ################################################################
 
-all: | $(CD) $(KC_VDISK) $(INIT) $(LOGIN) $(SH)
-	mcp $(INIT) /bin/init
-	mcp $(LOGIN) /bin/login
-	$(VM) $(VM_FLAGS)
+all: | $(CD) $(KC_VDISK) $(OBJ_DIR) $(INIT) $(LOGIN) $(SH)
+	@cp $(KC_VDISK) $(JJ_VDISK); \
+	echo "partition=$(PARTITION) sector=$(SECTOR) offset=$(OFFSET)"; \
+	sudo mount -o loop,offset=$(OFFSET) $(JJ_VDISK) /mnt; \
+	sudo cp -av $(INIT) /mnt/bin/$(INIT); \
+	sudo cp -av $(LOGIN) /mnt/bin/$(LOGIN); \
+	sudo cp -av passwd /mnt/etc/passwd; \
+	sudo umount /mnt
+
+$(OBJ_DIR):
+	@mkdir -p -- $@
 
 $(DISK_DIR):
 	@mkdir -p -- $@
@@ -100,16 +109,8 @@ $(KC_VDISK): | $(DISK_DIR)
 	fi
 
 ################################################################
-## Operating System 
+## Compile 
 ################################################################
-
-$(INIT): $(INIT_OBJECTS)
-	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
-
-$(LOGIN): $(LOGIN_OBJECTS)
-	$(LINK) $+ $(LFLAGS) -o $@ $(HIDE_WARNINGS)
-
-#$(SH): sh.c
 
 $(OBJ_DIR)/u.o: u.s
 	$(SC) $< -o $@
@@ -127,25 +128,23 @@ $(OBJ_DIR)/util.o: util.c
 	$(CC) $(CFLAGS) $< -o $@
 
 ################################################################
+## Link 
+################################################################
+
+$(INIT): $(INIT_OBJECTS)
+	$(LINK) $+ $(LFLAGS) -o $@ 2>/dev/null
+
+$(LOGIN): $(LOGIN_OBJECTS)
+	$(LINK) $+ $(LFLAGS) -o $@ 2>/dev/null
+
+#$(SH): sh.c
+
+################################################################
 ## Make Commands 
 ################################################################
 
 run:
-	$(VM) $(VM_FLAGS)
-
-clean:
-	@echo -e "$(WARN_COLOR)Cleaning$(NO_COLOR)"
-	rm -f $(JJ_VDISK) 
-	rm -f $(OBJ_DIR)/*.o
-
-super_clean: clean
-	rm -f $(INIT) 
-	rm -f $(LOGIN) 
-	rm -fr $(OBJ_DIR)
-#rm -f $(SH) 	
-
-ports:
-	tab="--tab"; \
+	@tab="--tab"; \
 	cmd="bash -c 'tty >> $(TTYS_FILE); tty; echo ===========; sleep 9999999';bash"; \
 	launch_port=""; \
 	rm -f $(TTYS_FILE); \
@@ -153,19 +152,22 @@ ports:
 	    launch_port+=($$tab -e "$$cmd"); \
 	done; \
 	gnome-terminal "$${launch_port[@]}"; \
-	sleep 0.5 
+	sleep 0.5; \
+	echo "$(VM) $(VM_FLAGS)"; \
+	$(VM) $(VM_FLAGS); \
+	rm -f $(TTYS_FILE)
 
-print_ports:
-	@echo "$(SERIAL_PORT0) = SerialPort0"
-	@echo "$(SERIAL_PORT1) = SerialPort1"
-	@echo "$(PRINTER) = Printer"
+clean:
+	@echo -e "$(WARN_COLOR)Cleaning$(NO_COLOR)"
+	rm -fr $(OBJ_DIR)
+	rm -f  $(TTYS_FILE) 
+	rm -f  $(JJ_VDISK) 
+	rm -f  $(INIT) 
+	rm -f  $(LOGIN) 
 
-show_warnings:
-HIDE_WARNINGS =
+debug: | clean all run
 
-debug: | show_warnings all run
-
-debug_make: | super_clean show_warnings all
+q: | all run
 
 ################################################################
 ## Make Help
@@ -174,10 +176,9 @@ help:
 	@echo 
 	@echo -e "$(WARN_COLOR)Makefile Commands:"
 	@echo -ne "$(OK_COLOR)"
-	@echo -e "make              compiles everything"
-	@echo -e "make ports        opens serial ports & printer (terminals), saves ttys to file"
-	@echo -e "make print_ports  see which terminal corresponds to what port/type" 
-	@echo -e "make run      	runs the executable"
-	@echo -e "make clean    	removes all object files and the executable"
-	@echo -e "make debug    	cleans, compiles, and runs everything"
+	@echo -e "make          compile everything"
+	@echo -e "make run      setup ports (consoles) and run the virtual machine"
+	@echo -e "make clean    remove all object files and the executable"
+	@echo -e "make debug    cleans, compiles, and runs everything"
+	@echo -e "make q        compiles, and runs everything"
 	@echo -e "$(NO_COLOR)"
