@@ -60,10 +60,10 @@ int main(int argc, char *argv[])
             pid_serial0 = init("ttyS0");
         else if(pid == pid_serial1)
             pid_serial1 = init("ttyS1");
-        else
-        {
-            printf("JJINIT P%d: I didn't know I had that child!\n", getpid());
-        }
+        //else
+        //{
+        //    printf("JJINIT P%d: I didn't know I had that child!\n", getpid());
+        //}
     }
 }       
 

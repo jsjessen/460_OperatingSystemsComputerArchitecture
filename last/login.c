@@ -65,6 +65,8 @@ int main(int argc, char *argv[])   // invoked by exec("login /dev/ttyxx")
     }
 
     settty(tty);  // store tty string in PROC.tty[] for putc()
+    signal(2,1);  // ignore Control-C interrupts so that 
+    // Control-C KILLs other procs on this tty but not the main sh
 
     // NOW we can use printf, which calls putc() to our tty
     printf("JJLOGIN : Open %s as stdin, stdout, stderr\n", tty);
@@ -73,12 +75,24 @@ int main(int argc, char *argv[])   // invoked by exec("login /dev/ttyxx")
     printf("* LOGIN *\n");
     printf("=========\n");
 
-    signal(2,1);  // ignore Control-C interrupts so that 
-    // Control-C KILLs other procs on this tty but not the main sh
-
     while(true)
     {
         USER user;
+
+#ifdef DEBUG
+        {
+            user.gid = 4;
+            user.uid = 4;
+            strcpy(user.fullname, "James Jessen");
+            //strcpy(user.home, "/user/james");
+            strcpy(user.home, "/");
+            strcpy(user.program, "sh");
+
+            chuid(user.uid, user.gid);
+            chdir(user.home);
+            exec(user.program);
+        }
+#endif
 
         printf("Username: ");
         gets(user.name);
@@ -114,7 +128,7 @@ bool verify(USER* user)
     int nbytes = 256 - 1;
     int bytes_read;
     int fd; 
-    
+
     if((fd= open(password_file, O_RDONLY)) < 0)
     {
         printf("Error login->verify: Unable to open %s\n", password_file);
@@ -130,7 +144,7 @@ bool verify(USER* user)
         // root:12345:0:0:super user:/:sh
 
         if(strcmp(user->name, strtok(line, ":")) == 0 &&
-           strcmp(user->password, strtok(NULL, ":")) == 0)
+                strcmp(user->password, strtok(NULL, ":")) == 0)
         {
             user->gid = atoi(strtok(NULL, ":"));
             user->uid = atoi(strtok(NULL, ":"));

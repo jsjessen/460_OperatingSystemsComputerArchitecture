@@ -2,12 +2,15 @@
 #define __TYPE_H__
 
 // ------- JJ --------
-#define EOF    -1
-#define BAD_FD -1
+#define EOF     -1
+#define BAD_FD  -1
 
-#define STDIN   0
-#define STDOUT  1
-#define STDERR  2
+#define STDIN    0
+#define STDOUT   1
+#define STDERR   2
+
+#define PIPEIN   0
+#define PIPEOUT  1
 
 typedef enum { FAILURE = -1, SUCCESS = 0 } exit_t;
 typedef enum { false, true } bool;

@@ -61,7 +61,7 @@ OBJ_DIR := obj
 
 # Linker
 LINK := ld86
-LFLAGS := mtxlib /usr/lib/bcc/libc.a
+LFLAGS := mtxlib /usr/lib/bcc/libc.a 2>/dev/null
 
 INIT := init
 INIT_OBJECTS := $(addprefix $(OBJ_DIR)/, \
@@ -70,6 +70,9 @@ INIT_OBJECTS := $(addprefix $(OBJ_DIR)/, \
 LOGIN := login
 LOGIN_OBJECTS := $(addprefix $(OBJ_DIR)/, \
 				   u.o login.o ucode.o util.o)
+SH := sh
+SH_OBJECTS := $(addprefix $(OBJ_DIR)/, \
+				   u.o sh.o ucode.o util.o)
 
 PARTITION=1
 SECTOR=$$(./ptable $(JJ_VDISK) $(PARTITION))
@@ -79,13 +82,16 @@ OFFSET=$$(expr $(SECTOR) \* 512)
 ## Arrange Files 
 ################################################################
 
+
 all: | $(CD) $(KC_VDISK) $(OBJ_DIR) $(INIT) $(LOGIN) $(SH)
 	@cp $(KC_VDISK) $(JJ_VDISK); \
 	echo "partition=$(PARTITION) sector=$(SECTOR) offset=$(OFFSET)"; \
 	sudo mount -o loop,offset=$(OFFSET) $(JJ_VDISK) /mnt; \
 	sudo cp -av $(INIT) /mnt/bin/$(INIT); \
 	sudo cp -av $(LOGIN) /mnt/bin/$(LOGIN); \
+	sudo cp -av $(SH) /mnt/bin/$(SH); \
 	sudo cp -av passwd /mnt/etc/passwd; \
+	sudo mkdir /mnt/user/james; \
 	sudo umount /mnt
 
 $(OBJ_DIR):
@@ -121,6 +127,9 @@ $(OBJ_DIR)/init.o: init.c ucode.h
 $(OBJ_DIR)/login.o: login.c ucode.h util.h
 	$(CC) $(CFLAGS) $< -o $@
 
+$(OBJ_DIR)/sh.o: sh.c ucode.h util.h
+	$(CC) $(CFLAGS) $< -o $@
+
 $(OBJ_DIR)/ucode.o: ucode.c
 	$(CC) $(CFLAGS) $< -o $@
 
@@ -132,38 +141,51 @@ $(OBJ_DIR)/util.o: util.c
 ################################################################
 
 $(INIT): $(INIT_OBJECTS)
-	$(LINK) $+ $(LFLAGS) -o $@ 2>/dev/null
+	$(LINK) $+ $(LFLAGS) -o $@
 
 $(LOGIN): $(LOGIN_OBJECTS)
-	$(LINK) $+ $(LFLAGS) -o $@ 2>/dev/null
+	$(LINK) $+ $(LFLAGS) -o $@
 
-#$(SH): sh.c
+$(SH): $(SH_OBJECTS)
+	$(LINK) $+ $(LFLAGS) -o $@
+
+################################################################
+## Ports 
+################################################################
+
+$(TTYS_FILE):
+	@if [ ! -f $@ ]; then \
+		tab="--tab"; \
+		cmd="bash -c 'tty >> $(TTYS_FILE); tty; echo ===========; sleep 9999999';bash"; \
+		launch_port=""; \
+		rm -f $(TTYS_FILE); \
+		for i in 0 1 2; do \
+		launch_port+=($$tab -e "$$cmd"); \
+		done; \
+		gnome-terminal "$${launch_port[@]}"; \
+		sleep 0.5; \
+	fi
+
+rm_ttys:
+	rm -f  $(TTYS_FILE) 
 
 ################################################################
 ## Make Commands 
 ################################################################
 
-run:
-	@tab="--tab"; \
-	cmd="bash -c 'tty >> $(TTYS_FILE); tty; echo ===========; sleep 9999999';bash"; \
-	launch_port=""; \
-	rm -f $(TTYS_FILE); \
-	for i in 0 1 2; do \
-	    launch_port+=($$tab -e "$$cmd"); \
-	done; \
-	gnome-terminal "$${launch_port[@]}"; \
-	sleep 0.5; \
-	echo "$(VM) $(VM_FLAGS)"; \
-	$(VM) $(VM_FLAGS); \
-	rm -f $(TTYS_FILE)
+run: $(TTYS_FILE)
+	@echo "$(VM) $(VM_FLAGS)"; \
+	$(VM) $(VM_FLAGS)
+
+port: | rm_ttys $(TTYS_FILE)
 
 clean:
 	@echo -e "$(WARN_COLOR)Cleaning$(NO_COLOR)"
 	rm -fr $(OBJ_DIR)
-	rm -f  $(TTYS_FILE) 
 	rm -f  $(JJ_VDISK) 
 	rm -f  $(INIT) 
 	rm -f  $(LOGIN) 
+	#rm -f  $(TTYS_FILE) 
 
 debug: | clean all run
 
@@ -177,8 +199,9 @@ help:
 	@echo -e "$(WARN_COLOR)Makefile Commands:"
 	@echo -ne "$(OK_COLOR)"
 	@echo -e "make          compile everything"
-	@echo -e "make run      setup ports (consoles) and run the virtual machine"
+	@echo -e "make run      run the virtual machine"
+	@echo -e "make port     launch new terminals for viewing ports 
 	@echo -e "make clean    remove all object files and the executable"
 	@echo -e "make debug    cleans, compiles, and runs everything"
-	@echo -e "make q        compiles, and runs everything"
+	@echo -e "make q        compiles and runs everything"
 	@echo -e "$(NO_COLOR)"

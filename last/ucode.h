@@ -3,6 +3,8 @@
 
 #include "type.h"
 
+#define DEBUG 
+
 int getpid();
 int getppid();
 int getpri();
