@@ -80,18 +80,18 @@ int main(int argc, char *argv[])   // invoked by exec("login /dev/ttyxx")
         USER user;
 
 #ifdef DEBUG
-        {
-            user.gid = 4;
-            user.uid = 4;
-            strcpy(user.fullname, "James Jessen");
-            //strcpy(user.home, "/user/james");
-            strcpy(user.home, "/");
-            strcpy(user.program, "sh");
+        // {
+        //     user.gid = 4;
+        //     user.uid = 4;
+        //     strcpy(user.fullname, "James Jessen");
+        //     //strcpy(user.home, "/user/james");
+        //     strcpy(user.home, "/");
+        //     strcpy(user.program, "sh");
 
-            chuid(user.uid, user.gid);
-            chdir(user.home);
-            exec(user.program);
-        }
+        //     chuid(user.uid, user.gid);
+        //     chdir(user.home);
+        //     exec(user.program);
+        // }
 #endif
 
         printf("Username: ");

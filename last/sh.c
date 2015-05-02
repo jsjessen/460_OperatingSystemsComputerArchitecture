@@ -243,10 +243,6 @@ void process_line(char* line)
 
     if(!line || line[0] == '\0' || strcmp(line, "") == 0)
         exit(SUCCESS);
-#ifdef DEBUG
-    sprintf(msg_buf, "%d process_line: line=\"%s\"\n\r", getpid(), line);
-    print_buf(STDERR, msg_buf);
-#endif
 
     // Create a copy of line for this process to use safely
     // line = A | B | C
@@ -269,7 +265,7 @@ void process_line(char* line)
     }
 
 #ifdef DEBUG
-    sprintf(msg_buf, "%d head=\"%s\"  tail=\"%s\"\n\r", getpid(), head, tail);
+    sprintf(msg_buf, "P%d Pipe: head=%s  tail=%s\n\r", getpid(), head, tail);
     print_buf(STDERR, msg_buf);
 #endif
 
