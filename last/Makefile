@@ -111,7 +111,7 @@ $(KC_VDISK): | $(DISK_DIR)
 	@if [ ! -f $@ ]; then \
 		echo -e "$(WARN_COLOR)Downloading $@...$(NO_COLOR)"; \
 		wget http://www.eecs.wsu.edu/~cs460/samples/LAST/vdisk; \
-		mv vdisk $(KC_IMAGE); \
+		mv vdisk $(KC_VDISK); \
 	fi
 
 ################################################################
