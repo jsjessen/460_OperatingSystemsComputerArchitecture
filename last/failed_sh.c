@@ -213,7 +213,7 @@ void io_redirect(char* line)
             sprintf(msg_buf, "Redirecting output to %s (append)\n\r", file);
             print_buf(STDERR, msg_buf);
 #endif
-            // Replace stdout with file (append)
+            // Replace stdout with file (overwrite)
             close(STDOUT);
             if(open(file, O_WRONLY | O_APPEND | O_CREAT) < 0)
                 perror(thisFileName, "io_redirect", " >> open");
@@ -243,41 +243,33 @@ void process_line(char* line)
 
     if(!line || line[0] == '\0' || strcmp(line, "") == 0)
         exit(SUCCESS);
-#ifdef DEBUG
-    sprintf(msg_buf, "%d process_line: line=\"%s\"\n\r", getpid(), line);
-    print_buf(STDERR, msg_buf);
-#endif
+        //perror(thisFileName, "process_line", "Input argument 'line' is empty");
 
-    // Create a copy of line for this process to use safely
     // line = A | B | C
-    // head = A
-    // tail = B | C
+    // head = A | B
+    // tail = C
     length = strlen(line);
-    head = strtok(line, "|");
+    head = line;          // Front 
+    tail = line + length; // Back 
+    while(line < tail && *tail != '|') { tail--; }
 
-    if(strlen(head) < length)
+    if(line < tail)
     {
-        // head|tail0
-        // .....^
-        tail = line + strlen(head) + 1;
+        // *(tail) = '|' -> '\0'
+        *(tail++) = '\0';
+#ifdef DEBUG
+        sprintf(msg_buf, "P%d Pipe: Head = %s   Tail = %s\n\r", getpid(), head, tail);
+        print_buf(STDERR, msg_buf);
+#endif
     }
     else
     {
-        // head0
-        // ....^
-        tail = line + length;
-    }
-
+        head = NULL; 
 #ifdef DEBUG
-    sprintf(msg_buf, "%d head=\"%s\"  tail=\"%s\"\n\r", getpid(), head, tail);
-    print_buf(STDERR, msg_buf);
+        sprintf(msg_buf, "P%d Line: %s\n\r", getpid(), tail);
+        print_buf(STDERR, msg_buf);
 #endif
-
-    // If no tail, just do the command in head
-    if(!tail || tail[0] == '\0')
-        do_command(head); // does not return
-
-    // If reach here, then there was pipe
+    }
 
     // Create Pipe
     if(pipe(pd) < 0)
@@ -287,23 +279,26 @@ void process_line(char* line)
     if((pid = fork()) < 0)
         perror(thisFileName, "process_line", "forking child process");
 
-    if(pid == 0)
+    if(pid)
     { 
-        // Child - Pipe Writer
-        close(pd[PIPEIN]);// writer MUST close PipeIn 
-        close(STDOUT);    // close stdout 
-        dup(pd[PIPEOUT]);  // replace stdout with PipeOut 
+        // Child - Pipe Reader 
+#ifdef DEBUG
+        sprintf(msg_buf, "P%d Do command: %s\n\r", getpid(), tail);
+        print_buf(STDERR, msg_buf);
+#endif
 
-        // Head is guarenteed to be an atomic cmd, attempt to execute it
-        do_command(head);
+        close(pd[PIPEOUT]); // Reader must close PipeOut
+        close(STDIN);       // Close StdIn
+        dup2(pd[PIPEIN], STDIN);    // Replace StdIn with PipeIn
+
+        // Execute tail, it is guarenteed to be a single command 
+        do_command(tail);
+
         exit(FAILURE);
     }
     else
     { 
-        // Parent - Pipe Reader
-        close(pd[PIPEOUT]); // reader MUST close PipeOut
-        close(STDIN);     // close stdin
-        dup(pd[PIPEIN]);   // replace stdin with PipeIn
+        // Parent - Pipe Writer 
 
         // Bug Fix
         // =======
@@ -319,95 +314,46 @@ void process_line(char* line)
         // messed up. It would be a BROKEN PIPE situation, where there
         // is a Pipe Writer but no Pipe Reader.
 
-        // Tail could contain more pipes
-        // Recurse, only head runs commands
-        process_line(tail);
+        char* cp;
+
+        if(!head)
+            exit(SUCCESS);
+
+        //pid = wait(&status);
+
+        // Head could contain more pipes
+        // Recurse, only tail executes commands
+        cp = line + length;
+        while(line < cp && *cp != '|') { cp--; }
+
+        if(*cp == '|')
+        {
+#ifdef DEBUG
+            sprintf(msg_buf, "P%d Process Line: %s\n\r", getpid(), head);
+            print_buf(STDERR, msg_buf);
+#endif
+            close(pd[PIPEIN]); // Writer must close PipeIn 
+            close(STDOUT);     // Close StdOut 
+            dup2(pd[PIPEOUT], STDOUT);  // Replace StdOut with PipeOut 
+
+            process_line(head);
+        }
+        else
+        {
+#ifdef DEBUG
+            sprintf(msg_buf, "P%d Do command: %s\n\r", getpid(), head);
+            print_buf(STDERR, msg_buf);
+#endif
+            do_command(head);
+        }
+
         exit(FAILURE);
     }
 }
-// ************************************************
-//     // line = A | B | C
-//     // head = A 
-//     // tail = B | C
-//     length = strlen(line);
-//     head = strtok(line, "|");
-//     while(head < tail && *head != '|') { head++; }
-// 
-//     if(strlen(head) < length)
-//     {
-//         // head|tail0
-//         // .....^
-//         tail = line + strlen(head) + 1;
-//     }
-//     else
-//     {
-//         // head0
-//         // ....^
-//         tail = line + length;
-//     }
-//     
-// #ifdef DEBUG
-//         sprintf(msg_buf, "P%d Pipe: Head = %s   Tail = %s\n\r", getpid(), head, tail);
-//         print_buf(STDERR, msg_buf);
-// #endif
-// 
-//     //if(!tail || tail[0] == '\0')
-//     //    do_command(head); // does not return
-//     // If reach here, then there was a pipe
-// 
-//     // Create Pipe
-//     if(pipe(pd) < 0)
-//         perror(thisFileName, "process_line", "creating pipe");
-// 
-//     // Fork child process
-//     if((pid = fork()) < 0)
-//         perror(thisFileName, "process_line", "forking child process");
-// 
-//     if(pid == 0)
-//     { 
-//         // Child - Pipe Writer
-//         close(pd[PIPEIN]); // Writer must close PipeIn 
-//         close(STDOUT);     // Close stdout 
-//         dup(pd[PIPEOUT]);  // Replace stdout with PipeOut 
-// 
-//         // Execute head, it is guarenteed to be a single command 
-//         do_command(head);
-//         exit(FAILURE);
-//     }
-//     else
-//     { 
-//         // Parent - Pipe Reader
-//         char* cp;
-// 
-//         if(!head)
-//             exit(SUCCESS);
-// 
-//         //pid = wait(&status);
-//         
-//         // Tail could contain more pipes
-//         // Recurse, only tail executes commands
-//         cp = line + length;
-//         while(tail < cp && *cp != '|') { cp--; }
-// 
-//         if(*cp == '|')
-//         {
-// #ifdef DEBUG
-//             sprintf(msg_buf, "P%d Process Line: %s\n\r", getpid(), head);
-//             print_buf(STDERR, msg_buf);
-// #endif
-//             close(pd[PIPEOUT]); // Reader must close PipeOut
-//             close(STDIN);       // Close stdin
-//             dup(pd[PIPEIN]);    // Replace stdin with PipeIn
-// 
-//             process_line(tail);
-//         }
-//         else
-//             do_command(tail);
-// 
-//         exit(FAILURE);
-//     }
-// }
 
+// Using fprintf(STDERR) in place of printf()
+// to avoid this output getting mixed up in 
+// IO redirection
 void do_command(char* cmd)
 {
     if(!cmd || cmd[0] == '\0')
