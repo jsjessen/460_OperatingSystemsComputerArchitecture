@@ -4,7 +4,9 @@ samples
 *vdisk*
 init
 login
+sh
 360sh
+*.dat
 
 # Allow These 
 #############
